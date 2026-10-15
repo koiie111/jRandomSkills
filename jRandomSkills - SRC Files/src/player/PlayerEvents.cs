@@ -92,8 +92,9 @@ namespace src.player
 
             Instance.RegisterEventHandler<EventBulletImpact>(BulletImpact);
 
-            VirtualFunctions.CBaseTrigger_StartTouchFunc.Hook(OnTriggerEnter, HookMode.Post);
-            VirtualFunctions.CBaseTrigger_EndTouchFunc.Hook(OnTriggerExit, HookMode.Pre);
+            // Entity outputs are tracked by BasePlugin and survive CS2 native signature changes.
+            Instance.HookEntityOutput("*", "OnStartTouch", OnTriggerEnterOutput, HookMode.Post);
+            Instance.HookEntityOutput("*", "OnEndTouch", OnTriggerExitOutput, HookMode.Pre);
             VirtualFunctions.CCSPlayer_ItemServices_CanAcquireFunc.Hook(OnWeaponCanAcquire, HookMode.Pre);
 
             // Disabled after CS2 updates started crashing Linux servers on player join.
@@ -105,10 +106,11 @@ namespace src.player
         {
             TryUnhook(() => Instance.RemoveListener<OnEntityTakeDamagePre>(OnEntityTakeDamagePre));
             TryUnhook(() => Instance.RemoveListener<OnEntityTakeDamagePost>(OnEntityTakeDamagePost));
-            TryUnhook(() => VirtualFunctions.CBaseTrigger_StartTouchFunc.Unhook(OnTriggerEnter, HookMode.Post));
-            TryUnhook(() => VirtualFunctions.CBaseTrigger_EndTouchFunc.Unhook(OnTriggerExit, HookMode.Pre));
+            TryUnhook(() => Instance.UnhookEntityOutput("*", "OnStartTouch", OnTriggerEnterOutput, HookMode.Post));
+            TryUnhook(() => Instance.UnhookEntityOutput("*", "OnEndTouch", OnTriggerExitOutput, HookMode.Pre));
             TryUnhook(() => VirtualFunctions.CCSPlayer_ItemServices_CanAcquireFunc.Unhook(OnWeaponCanAcquire, HookMode.Pre));
             TryUnhook(() => Instance.UnhookUserMessage(208, PlayerMakeSound));
+            TryUnhook(() => Instance.UnhookUserMessage(207, GetPrintToCenterHtml));
             TryUnhook(() => Instance.RemoveListener<CheckTransmit>(CheckTransmit));
             TryUnhook(NoRecoil.RestoreSpread);
         }

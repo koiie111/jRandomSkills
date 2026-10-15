@@ -142,24 +142,28 @@ namespace src.player
             }
         }
 
-        private static HookResult OnTriggerEnter(DynamicHook hook)
+        private static HookResult OnTriggerEnterOutput(CEntityIOOutput output, string name, CEntityInstance activator, CEntityInstance caller, CVariant value, float delay)
         {
             lock (setLock)
             {
-                CBaseTrigger trigger = hook.GetParam<CBaseTrigger>(0);
-                CBaseEntity entity = hook.GetParam<CBaseEntity>(1);
+                if (!caller.IsValid || !activator.IsValid || !caller.DesignerName.StartsWith("trigger_"))
+                    return HookResult.Continue;
+                CBaseTrigger trigger = caller.As<CBaseTrigger>();
+                CBaseEntity entity = activator.As<CBaseEntity>();
 
                 DispatchToActiveSkills("OnTriggerEnter", trigger, entity);
                 return HookResult.Continue;
             }
         }
 
-        private static HookResult OnTriggerExit(DynamicHook hook)
+        private static HookResult OnTriggerExitOutput(CEntityIOOutput output, string name, CEntityInstance activator, CEntityInstance caller, CVariant value, float delay)
         {
             lock (setLock)
             {
-                CBaseTrigger trigger = hook.GetParam<CBaseTrigger>(0);
-                CBaseEntity entity = hook.GetParam<CBaseEntity>(1);
+                if (!caller.IsValid || !activator.IsValid || !caller.DesignerName.StartsWith("trigger_"))
+                    return HookResult.Continue;
+                CBaseTrigger trigger = caller.As<CBaseTrigger>();
+                CBaseEntity entity = activator.As<CBaseEntity>();
 
                 DispatchToActiveSkills("OnTriggerExit", trigger, entity);
                 return HookResult.Continue;
