@@ -46,11 +46,27 @@ namespace src.player.skills
 
         public static void PlayerDisconnect(uint playerIndex)
         {
-            bonds.TryRemove(playerIndex, out _);
+            RemoveBond(playerIndex);
 
             foreach (var kvp in bonds)
                 if (kvp.Value.PartnerKey == playerIndex)
-                    bonds.TryRemove(kvp.Key, out _);
+                    RemoveBond(kvp.Key);
+        }
+
+        private static void RemoveBond(uint ownerKey)
+        {
+            if (!bonds.TryRemove(ownerKey, out _)) return;
+
+            var owner = PlayerManager.GetController(ownerKey);
+            if (owner is { IsValid: true } && PlayerManager.GetPlayer(owner)?.Skill == skillName)
+                SkillUtils.ResetPrintHTML(owner);
+        }
+
+        public static void PlayerDeath(EventPlayerDeath @event)
+        {
+            var victim = PlayerManager.GetPlayerEvent(@event.Userid);
+            if (victim is { IsValid: true })
+                PlayerDisconnect(victim.Key());
         }
 
         public static void EnableSkill(CCSPlayerController player)
@@ -81,7 +97,7 @@ namespace src.player.skills
         {
             if (player == null || !player.IsValid) return;
 
-            bonds.TryRemove(player.Key(), out _);
+            RemoveBond(player.Key());
             SkillUtils.ResetPrintHTML(player);
             SkillUtils.CloseMenu(player);
         }
