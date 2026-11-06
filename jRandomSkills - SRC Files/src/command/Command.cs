@@ -1,4 +1,4 @@
-using CounterStrikeSharp.API;
+﻿using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -36,6 +36,7 @@ namespace src.command
 
                 var commands = new Dictionary<IEnumerable<string>, (string description, CommandInfo.CommandCallback handler)>
                 {
+                    { SplitCommands("bind"), ("Show skill bind help", (player, _) => SkillBindHelp.Print(player, true)) },
                     { SplitCommands(config.NormalCommands.SetSkillCommand.Alias), ("Set skill", Command_SetSkill) },
                     { SplitCommands(config.NormalCommands.SkillsListCommand.Alias), ("Delete all records", Command_SkillsListMenu) },
                     { SplitCommands(config.NormalCommands.UseSkillCommand.Alias), ("Use/Type skill", Command_UseTypeSkill) },

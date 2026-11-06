@@ -1,4 +1,4 @@
-using CounterStrikeSharp.API;
+﻿using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Events;
@@ -646,6 +646,7 @@ namespace src.player
                 Instance.SkillAction(skillPlayer.Skill.ToString(), "DisableSkill", [player]);
 
                 uint leavingKey = player.Key();
+                SkillBindHelp.Forget(leavingKey);
 
                 ReleaseCursesTargeting(leavingKey);
 

@@ -214,4 +214,7 @@ public enum Skills
     Weightless,
     WildThrow,
     Zeus,
+    Adrenaline,
+    GlassCannon,
+    Partner,
 }

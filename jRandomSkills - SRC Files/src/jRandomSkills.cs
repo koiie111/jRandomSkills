@@ -31,12 +31,13 @@ namespace src
         public override string ModuleName => "[CS2] [ jRandomSkills ]";
         public override string ModuleAuthor => "D3X (Original), Juzlus (Modifier), ByDexterTR (Contributor)";
         public override string ModuleDescription => "Plugin adds random skills every round for CS2 by D3X. Modified by Juzlus.";
-        public override string ModuleVersion => "1.2.4.b4-fix35.1";
+        public override string ModuleVersion => "1.2.4.b4-fix35.2";
 
         public override void Load(bool hotReload)
         {
             Instance = this;
 
+            SkillBindHelp.Load();
             Config.LoadConfig();
             SkillsInfo.LoadSkillsInfo();
             Localization.Load();
@@ -62,6 +63,12 @@ namespace src
             src.player.PerfLog.Info("===== PLUGIN UNLOAD (clean shutdown/reload) =====");
             Debug.WriteToDebug("===== PLUGIN UNLOAD (clean shutdown/reload) =====");
 
+            foreach (var player in PlayerManager.GetTickPlayers())
+            {
+                if (PlayerManager.GetPlayer(player)?.Skill == Skills.GlassCannon) src.player.skills.GlassCannon.DisableSkill(player);
+                if (PlayerManager.GetPlayer(player)?.Skill == Skills.Partner) src.player.skills.Partner.DisableSkill(player);
+            }
+            src.player.skills.Adrenaline.NewRound();
             Event.Unload();
             Debug.Unload();
 
@@ -157,6 +164,9 @@ namespace src
 
                 return type.GetMethod(key.Method, BindingFlags.Static | BindingFlags.Public);
             });
+
+            if (methodName == "EnableSkill" && param?.FirstOrDefault() is CCSPlayerController hintPlayer)
+                SkillBindHelp.TryPrint(hintPlayer, skill);
 
             if (method == null) return null;
 

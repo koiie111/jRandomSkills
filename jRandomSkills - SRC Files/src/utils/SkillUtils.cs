@@ -1,4 +1,4 @@
-using CounterStrikeSharp.API;
+﻿using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Entities.Constants;
@@ -120,6 +120,15 @@ namespace src.utils
         }
 
         public static bool IsHudFrame() => Server.TickCount % 4 == 0;
+
+        public static void SetSkillHud(CCSPlayerController player, string key, params object[] args)
+        {
+            var info = PlayerManager.GetPlayer(player);
+            if (info != null) info.PrintHTML = player.GetTranslation(key, args);
+        }
+        public static CCSPlayerController[] GetSelectableTeammates(CCSPlayerController player) => PlayerManager.GetTickPlayers()
+            .Where(p => p.IsValid && p.Key() != player.Key() && p.Team == player.Team
+                && p.PlayerPawn.Value is { IsValid: true, Health: > 0 } pawn && pawn.LifeState == (byte)LifeState_t.LIFE_ALIVE).ToArray();
 
         public static void RegisterSkill(Skills skill, string color, bool display = true)
         {
