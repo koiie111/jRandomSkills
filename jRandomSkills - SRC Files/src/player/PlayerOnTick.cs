@@ -24,16 +24,25 @@ namespace src.player
                     PerfLog.Info($"ENTITIES server={server} tracked={tracked} owners={owners}{EntityManager.DescribeTracked()}{Event.PerfContext()}");
                 }
 
-                var gameRules = Instance.GameRules;
-                if (gameRules == null || gameRules.WarmupPeriod || gameRules.GamePhase >= 5) return;
-
                 long perfStart = PerfLog.Start();
                 // Shared per-tick controller snapshot: the skill OnTick loop already scans the
                 // player list this frame, so reuse that native scan instead of running a second one.
-                var now = DateTime.Now;
-                int tick = Server.TickCount;
+                DateTime now = default;
+                int tick = 0;
                 foreach (var player in PlayerManager.GetTickPlayers())
+                {
+                    if (player == null || !player.IsValid || player.IsBot) continue;
+
+                    if (now == default)
+                    {
+                        var gameRules = Instance.GameRules;
+                        if (gameRules == null || gameRules.WarmupPeriod || gameRules.GamePhase >= 5) break;
+                        now = DateTime.Now;
+                        tick = Server.TickCount;
+                    }
+
                     UpdatePlayerHud(player, now, tick);
+                }
                 PerfLog.Sample("OnTick(hud)", perfStart);
             });
 
@@ -79,8 +88,6 @@ namespace src.player
 
         private static void UpdatePlayerHud(CCSPlayerController player, DateTime now, int tick)
         {
-            if (player == null || !player.IsValid || player.IsBot) return;
-
             var skillPlayer = PlayerManager.GetPlayer(PlayerManager.GetPlayerEvent(player) ?? player);
             if (skillPlayer == null || skillPlayer.HideHUD >= tick) return;
 
