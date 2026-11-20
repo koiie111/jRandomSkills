@@ -79,13 +79,23 @@ namespace src.utils
                             {
                                 if (HasMissingKeys(current, instance)) needsRewrite = true;
 
-                                // Raise the previous shipped limit while preserving other configured durations.
-                                if (name == nameof(Skills.GuidedBullet) && current["Duration"] is JValue duration
-                                    && duration.Type is JTokenType.Integer or JTokenType.Float
-                                    && duration.Value<float>() == 3f)
+                                // Update the old Guided Bullet defaults while preserving other configured values.
+                                if (name == nameof(Skills.GuidedBullet))
                                 {
-                                    current["Duration"] = player.skills.GuidedBullet.DefaultDuration;
-                                    needsRewrite = true;
+                                    if (current["Duration"] is JValue duration
+                                        && duration.Type is JTokenType.Integer or JTokenType.Float
+                                        && duration.Value<float>() == 3f)
+                                    {
+                                        current["Duration"] = player.skills.GuidedBullet.DefaultDuration;
+                                        needsRewrite = true;
+                                    }
+                                    if (current["Speed"] is JValue speed
+                                        && speed.Type is JTokenType.Integer or JTokenType.Float
+                                        && speed.Value<float>() == 750f)
+                                    {
+                                        current["Speed"] = player.skills.GuidedBullet.DefaultSpeed;
+                                        needsRewrite = true;
+                                    }
                                 }
                             }
 

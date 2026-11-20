@@ -15,6 +15,7 @@ public sealed class GuidedBullet : ISkill
         Contents.Window | Contents.PassBullets | Contents.PhysicsProp | Contents.CsgoMoveable |
         Contents.Player | Contents.Hitbox | Contents.Sky);
     internal const float DefaultDuration = 8f;
+    internal const float DefaultSpeed = 550f;
     private const float MaxDuration = 12f;
     private const float ArmSeconds = 5f;
     private const string CameraModel = "models/sprays/spray_plane.vmdl";
@@ -286,7 +287,7 @@ public sealed class GuidedBullet : ISkill
         disableOnFreezeTime: true, maxPerServer: 2, rarity: src.utils.Rarity.Rare)
     {
         public float Duration { get; set; } = DefaultDuration;
-        public float Speed { get; set; } = 750;
+        public float Speed { get; set; } = DefaultSpeed;
         public int Damage { get; set; } = 75;
     }
 }
