@@ -243,6 +243,7 @@ internal static partial class Hud
             SetClass(player, viewer, "jrs_bind_line", "jrs-shown", showBind);
         }
         Write(player, viewer, "jrs_observed", observed ?? "");
+        SetClass(player, viewer, "jrs_observed_line", "jrs-shown", !string.IsNullOrWhiteSpace(observed));
         if (now - viewer.LastStatusSample >= 1000 || string.IsNullOrEmpty(info.PrintHTML))
         {
             viewer.LastStatusSample = now;

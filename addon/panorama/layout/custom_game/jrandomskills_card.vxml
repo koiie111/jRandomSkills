@@ -10,7 +10,7 @@
                     <Label text="{s:jrs_icon}" class="jrs-icon-glyph" />
                 </Panel>
                 <Panel class="jrs-copy" hittest="false">
-                    <Label text="{s:jrs_observed}" class="jrs-observed" />
+                    <Label id="jrs_observed_line" text="{s:jrs_observed}" class="jrs-observed jrs-hidden" />
                     <Panel class="jrs-card-heading" hittest="false">
                         <Label text="{s:jrs_name}" class="jrs-name" />
                         <Label id="jrs_kind_label" text="{s:jrs_kind}" class="jrs-kind jrs-hidden" />
