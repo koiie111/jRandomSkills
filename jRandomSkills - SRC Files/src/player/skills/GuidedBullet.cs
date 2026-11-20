@@ -14,6 +14,8 @@ public sealed class GuidedBullet : ISkill
     private const float MaxDuration = 12f;
     private const float ArmSeconds = 5f;
     private const string CameraModel = "models/sprays/spray_plane.vmdl";
+    private const string BulletModel = "weapons/models/shared/shells/awp/awp_bullet.vmdl";
+    private const float BulletScale = 4f;
     private sealed class Shot(CCSPlayerController player, CCSPlayerPawn pawn, CCSWeaponBase gun, int armedTick, float duration)
     {
         public CCSPlayerController Player { get; } = player;
@@ -29,7 +31,7 @@ public sealed class GuidedBullet : ISkill
         public bool ReleasedTrigger { get; set; } = (player.Buttons & PlayerButtons.Attack) == 0;
         public CDynamicProp? Camera { get; set; }
         public uint CameraHandle { get; set; }
-        public CBeam? Tracer { get; set; }
+        public CDynamicProp? Bullet { get; set; }
         public uint OriginalView { get; set; }
         public MoveType_t OriginalMove { get; } = pawn.MoveType;
         public MoveType_t OriginalActualMove { get; } = pawn.ActualMoveType;
@@ -49,6 +51,7 @@ public sealed class GuidedBullet : ISkill
     {
         SkillPackPlayers.Register(Skills.GuidedBullet);
         jRandomSkills.Instance.AddToManifest(CameraModel);
+        jRandomSkills.Instance.AddToManifest(BulletModel);
     }
 
     public static void UseSkill(CCSPlayerController player)
@@ -113,7 +116,7 @@ public sealed class GuidedBullet : ISkill
                 continue;
             }
 
-            if (tick >= shot.EndTick || !shot.Camera.IsValid || shot.Tracer is not { IsValid: true } ||
+            if (tick >= shot.EndTick || !shot.Camera.IsValid || shot.Bullet is not { IsValid: true } ||
                 shot.Pawn.CameraServices?.ViewEntity.Raw != shot.CameraHandle)
             {
                 Stop(key);
@@ -130,21 +133,42 @@ public sealed class GuidedBullet : ISkill
             shot.Pawn.MoveType != MoveType_t.MOVETYPE_WALK || shot.Pawn.AbsOrigin is not { } origin || shot.Pawn.CameraServices is not { } services) return false;
         var start = new Vector(origin.X, origin.Y, origin.Z + shot.Pawn.ViewOffset.Z);
         if (EntityManager.CreateTrackedDynamicProp(key) is not { IsValid: true } camera) return false;
-        var direction = SkillUtils.GetForwardVector(shot.Pawn.EyeAngles);
-        var tracer = EntityManager.CreateTrackedBeam(key, start, start + direction * 9, Color.Gold);
-        if (tracer is not { IsValid: true })
+        if (EntityManager.CreateTrackedPropOverride(key) is not { IsValid: true } bullet)
         {
             EntityManager.DestroyEntity(camera.Index);
             return false;
         }
 
+        var angles = shot.Pawn.EyeAngles;
+        using (var keys = new CEntityKeyValues())
+        {
+            keys.SetString("model", BulletModel);
+            keys.SetVector("origin", start);
+            keys.SetInt("solid", (int)SolidType_t.SOLID_NONE);
+            bullet.DispatchSpawn(keys);
+        }
+        if (!bullet.IsValid)
+        {
+            EntityManager.DestroyEntity(camera.Index);
+            return false;
+        }
+        bullet.Teleport(start, angles);
+        bullet.AcceptInput("DisableCollision");
+        EntityManager.MakeNonSolid(bullet);
+        var skeleton = bullet.CBodyComponent?.SceneNode?.GetSkeletonInstance();
+        if (skeleton != null)
+        {
+            skeleton.Scale = BulletScale;
+            Utilities.SetStateChanged(bullet, "CBaseEntity", "m_CBodyComponent");
+        }
+
         camera.SetModel(CameraModel);
         camera.Render = Color.Transparent;
-        camera.Teleport(start, shot.Pawn.EyeAngles);
+        camera.Teleport(start, angles);
         camera.DispatchSpawn();
         shot.Camera = camera;
         shot.CameraHandle = camera.EntityHandle.Raw;
-        shot.Tracer = tracer;
+        shot.Bullet = bullet;
         shot.OriginalView = services.ViewEntity.Raw;
         shot.Position = start;
         shot.EndTick = tick + shot.DurationTicks;
@@ -198,12 +222,7 @@ public sealed class GuidedBullet : ISkill
             cameraTarget = end + (cameraTarget - end) * Math.Max(0, clearance.Value.Fraction - 0.08f);
 
         shot.Camera!.Teleport(cameraTarget, angles);
-        var tracer = shot.Tracer!;
-        tracer.Teleport(end - forward * 9);
-        tracer.EndPos.X = end.X;
-        tracer.EndPos.Y = end.Y;
-        tracer.EndPos.Z = end.Z;
-        Utilities.SetStateChanged(tracer, "CBeam", "m_vecEndPos");
+        shot.Bullet!.Teleport(end, angles);
     }
 
     public static void WeaponEquip(EventItemEquip e)
@@ -256,7 +275,7 @@ public sealed class GuidedBullet : ISkill
                 SetMoveType(shot.Pawn, shot.OriginalMove, shot.OriginalActualMove);
         }
         if (shot.Camera.IsValid) EntityManager.DestroyEntity(shot.Camera.Index);
-        if (shot.Tracer is { IsValid: true } tracer) EntityManager.DestroyEntity(tracer.Index);
+        if (shot.Bullet is { IsValid: true } bullet) EntityManager.DestroyEntity(bullet.Index);
     }
 
     private static int Ticks(float seconds) => (int)MathF.Ceiling(seconds / Server.TickInterval);
