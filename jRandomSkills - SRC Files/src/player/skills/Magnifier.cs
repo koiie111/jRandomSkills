@@ -109,6 +109,7 @@ namespace src.player.skills
             enemyEvent.DesiredFOV = magnifierFov;
             Utilities.SetStateChanged(enemyEvent, "CBasePlayerController", "m_iDesiredFOV");
             playerInfo.SkillUsed = true;
+            playerInfo.HudChoice = new(Name: enemy.PlayerName);
 
             playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("magnifier_player_info", enemy.PlayerName));
             enemyEvent.Notify($" {ChatColors.Red}" + enemyEvent.GetTranslation("magnifier_enemy_info"));

@@ -126,6 +126,7 @@ namespace src.player.skills
             playersToTarget[player.Key()] = enemy.Key();
             targetToPlayer[enemy.Key()] = player.Key();
             playerInfo.SkillUsed = true;
+            playerInfo.HudChoice = new(Name: enemy.PlayerName);
 
             var enemyEvent = PlayerManager.GetPlayerFromEvent(enemy);
             if (enemyEvent == null || !enemyEvent.IsValid) return;

@@ -193,6 +193,7 @@ namespace src.player
                     playerInfo.PrintHTML = null;
                     playerInfo.SkillChance = 1;
                     playerInfo.SkillUsed = false;
+                    playerInfo.HudChoice = null;
 
                     RestorePlayer(player);
                 }

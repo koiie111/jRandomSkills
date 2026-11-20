@@ -61,6 +61,7 @@ namespace src.player.skills
                     targetSite.BombPlantedHere = true;
                     Utilities.SetStateChanged(targetSite, "CBombTarget", "m_bBombPlantedHere");
                     playerInfo.SkillUsed = true;
+                    playerInfo.HudChoice = new(Translation: site == 0 ? "bombsite_a" : "bombsite_b");
 
                     playersToTarget[player.Key()] = targetSite.Index;
 

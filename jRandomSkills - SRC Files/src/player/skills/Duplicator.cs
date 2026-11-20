@@ -158,6 +158,7 @@ namespace src.player.skills
             {
                 playerInfo.Skill = enemySkill;
                 playerInfo.SpecialSkill = skillName;
+                playerInfo.HudChoice = new(Name: enemyName);
                 SkillUtils.CloseMenu(player);
 
                 if (SkillsInfo.GetValue<bool>(enemySkill, "disableOnFreezeTime") && SkillUtils.IsFreezeTime())

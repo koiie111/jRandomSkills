@@ -2,17 +2,40 @@
     <styles><include src="s2r://panorama/styles/custom_game/jrandomskills.vcss_c" /></styles>
     <Panel class="jrs-screen jrs-layer" hittest="false">
         <Panel id="jrandomskills_menu" class="jrs-menu jrs-hidden">
+            <Label id="jrs_intro_brand" text="4ill.ru - RANDOM EVENTS" class="jrs-brand jrs-hidden" />
             <Panel class="jrs-menu-header">
                 <Label text="{s:jrs_menu_title}" class="jrs-menu-title" />
                 <Button id="jrs_close" class="jrs-square"><Label text="×" /></Button>
             </Panel>
-            <Label text="{s:jrs_menu_body}" class="jrs-body" />
-            <Button id="jrs_option0" class="jrs-option jrs-hidden"><Label text="{s:jrs_row0}" /></Button>
-            <Button id="jrs_option1" class="jrs-option jrs-hidden"><Label text="{s:jrs_row1}" /></Button>
-            <Button id="jrs_option2" class="jrs-option jrs-hidden"><Label text="{s:jrs_row2}" /></Button>
-            <Button id="jrs_option3" class="jrs-option jrs-hidden"><Label text="{s:jrs_row3}" /></Button>
-            <Button id="jrs_option4" class="jrs-option jrs-hidden"><Label text="{s:jrs_row4}" /></Button>
-            <Button id="jrs_option5" class="jrs-option jrs-hidden"><Label text="{s:jrs_row5}" /></Button>
+            <Label id="jrs_menu_body_line" text="{s:jrs_menu_body}" class="jrs-body jrs-hidden" />
+            <Panel id="jrs_intro_bind" class="jrs-intro-bind jrs-hidden">
+                <Label text="bind i css_useskill" class="jrs-intro-command" />
+                <Label text="{s:jrs_intro_note}" class="jrs-intro-note" />
+            </Panel>
+            <Button id="jrs_option0" class="jrs-option jrs-hidden">
+                <Label text="{s:jrs_row0}" class="jrs-row-title" />
+                <Label id="jrs_option_desc0" text="{s:jrs_row_desc0}" class="jrs-row-description jrs-hidden" />
+            </Button>
+            <Button id="jrs_option1" class="jrs-option jrs-hidden">
+                <Label text="{s:jrs_row1}" class="jrs-row-title" />
+                <Label id="jrs_option_desc1" text="{s:jrs_row_desc1}" class="jrs-row-description jrs-hidden" />
+            </Button>
+            <Button id="jrs_option2" class="jrs-option jrs-hidden">
+                <Label text="{s:jrs_row2}" class="jrs-row-title" />
+                <Label id="jrs_option_desc2" text="{s:jrs_row_desc2}" class="jrs-row-description jrs-hidden" />
+            </Button>
+            <Button id="jrs_option3" class="jrs-option jrs-hidden">
+                <Label text="{s:jrs_row3}" class="jrs-row-title" />
+                <Label id="jrs_option_desc3" text="{s:jrs_row_desc3}" class="jrs-row-description jrs-hidden" />
+            </Button>
+            <Button id="jrs_option4" class="jrs-option jrs-hidden">
+                <Label text="{s:jrs_row4}" class="jrs-row-title" />
+                <Label id="jrs_option_desc4" text="{s:jrs_row_desc4}" class="jrs-row-description jrs-hidden" />
+            </Button>
+            <Button id="jrs_option5" class="jrs-option jrs-hidden">
+                <Label text="{s:jrs_row5}" class="jrs-row-title" />
+                <Label id="jrs_option_desc5" text="{s:jrs_row_desc5}" class="jrs-row-description jrs-hidden" />
+            </Button>
             <Panel id="jrs_pages" class="jrs-pages jrs-hidden">
                 <Button id="jrs_prev" class="jrs-square"><Label text="‹" /></Button>
                 <Label text="{s:jrs_page}" class="jrs-page" />

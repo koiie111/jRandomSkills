@@ -156,6 +156,7 @@ namespace src.player.skills
             playersToTarget[player.Key()] = enemy.Key();
 
             playerInfo.SkillUsed = true;
+            playerInfo.HudChoice = new(Name: enemy.PlayerName);
             playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("wildthrow_player_info", enemy.PlayerName));
 
             var enemyEvent = PlayerManager.GetPlayerFromEvent(enemy);

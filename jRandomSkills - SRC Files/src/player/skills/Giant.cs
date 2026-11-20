@@ -134,6 +134,7 @@ namespace src.player.skills
             }
 
             playerInfo.SkillUsed = true;
+            playerInfo.HudChoice = new(Name: enemy.PlayerName);
             SkillUtils.CloseMenu(player);
 
             playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("giant_player_info", enemy.PlayerName, newSize));

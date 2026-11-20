@@ -125,6 +125,7 @@ namespace src.player.skills
             {
                 playerInfo.Skill = Skills.None;
                 playerInfo.SpecialSkill = skillName;
+                playerInfo.HudChoice = new(Name: enemy.PlayerName);
                 playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("deactivator_player_info", enemy.PlayerName));
             }
 

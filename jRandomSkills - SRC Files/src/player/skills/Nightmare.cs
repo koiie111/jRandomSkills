@@ -125,6 +125,7 @@ namespace src.player.skills
             }
 
             playerInfo.SkillUsed = true;
+            playerInfo.HudChoice = new(Name: enemy.PlayerName);
 
             var enemyEvent = PlayerManager.GetPlayerFromEvent(enemy);
             playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("nightmare_player_info", enemy.PlayerName));

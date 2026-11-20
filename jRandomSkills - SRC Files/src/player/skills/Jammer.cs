@@ -112,6 +112,7 @@ namespace src.player.skills
             SetCrosshair(enemy, false);
             SetCrosshair(enemyEvent, false);
             playerInfo.SkillUsed = true;
+            playerInfo.HudChoice = new(Name: enemy.PlayerName);
 
             playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("jammer_player_info", enemy.PlayerName));
             enemyEvent.Notify($" {ChatColors.Red}" + enemyEvent.GetTranslation("jammer_enemy_info"));

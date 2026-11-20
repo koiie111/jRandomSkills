@@ -113,6 +113,7 @@ namespace src.player.skills
 
             ownerToVictim[player.Key()] = enemy.Key();
             playerInfo.SkillUsed = true;
+            playerInfo.HudChoice = new(Name: enemy.PlayerName);
 
             playerEvent.Notify($" {ChatColors.Green}{playerEvent.GetTranslation("voodoo_player_info", enemy.PlayerName)}");
         }

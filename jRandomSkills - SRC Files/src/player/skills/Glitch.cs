@@ -103,6 +103,7 @@ namespace src.player.skills
 
             SkillUtils.SetRadarDisabled(enemyEvent, ownerTag, true);
             playerInfo.SkillUsed = true;
+            playerInfo.HudChoice = new(Name: enemy.PlayerName);
 
             playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("glitch_player_info", enemy.PlayerName));
             enemyEvent.Notify($" {ChatColors.Red}" + enemyEvent.GetTranslation("glitch_enemy_info"));

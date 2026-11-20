@@ -64,6 +64,7 @@ namespace src.player.skills
                 if (skill.Skill != skillName)
                     playerInfo.SpecialSkill = skillName;
                 playerInfo.SkillUsed = true;
+                playerInfo.HudChoice = new(Skill: skill.Skill);
 
                 if (SkillsInfo.GetValue<bool>(skill.Skill, "disableOnFreezeTime") && SkillUtils.IsFreezeTime())
                     Instance?.AddTimer(Math.Max((float)(Event.GetFreezeTimeEnd() - DateTime.Now).TotalSeconds, 0), () =>

@@ -117,6 +117,7 @@ namespace src.player.skills
             markedPlayers[enemy.Key()] = 0;
             ownerToTarget[player.Key()] = enemy.Key();
             playerInfo.SkillUsed = true;
+            playerInfo.HudChoice = new(Name: enemy.PlayerName);
 
             playerEvent.Notify($" {ChatColors.Green}{playerEvent.GetTranslation("nemesis_player_info", enemy.PlayerName)}");
 

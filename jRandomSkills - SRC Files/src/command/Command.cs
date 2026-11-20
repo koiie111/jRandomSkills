@@ -40,6 +40,8 @@ namespace src.command
                     { SplitCommands("skillvote"), ("Open an active vote", (player, _) => VoteSystem.ShowVote(player)) },
                     { SplitCommands("bind"), ("Show skill bind help", (player, _) => Hud.ShowWelcome(player)) },
                     { SplitCommands(config.NormalCommands.SetSkillCommand.Alias), ("Set skill", Command_SetSkill) },
+                    { SplitCommands("skills"), ("Show skills", (player, _) =>
+                        { if (player != null) Menu.DisplaySkillsList(player); }) },
                     { SplitCommands(config.NormalCommands.SkillsListCommand.Alias), ("Show skills", Command_SkillsListMenu) },
                     { SplitCommands(config.NormalCommands.UseSkillCommand.Alias + ", useskill"), ("Use/Type skill", Command_UseTypeSkill) },
                     { SplitCommands(config.NormalCommands.ConsoleCommand.Alias), ("Console command", Command_CustomCommand) },

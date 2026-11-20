@@ -97,6 +97,7 @@ namespace src.player.skills
                 {
                     ResetMoney(enemy);
                     playerInfo.SkillUsed = true;
+                    playerInfo.HudChoice = new(Name: enemy.PlayerName);
                     SkillUtils.CloseMenu(player);
                     playerEvent.Notify($" {ChatColors.Lime}{playerEvent.GetTranslation("bankrupt_player_info", enemy.PlayerName)}");
 

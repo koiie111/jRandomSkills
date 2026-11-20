@@ -180,6 +180,7 @@ namespace src.player.skills
 
                 pInfo.Skill = enemySkill;
                 pInfo.SpecialSkill = skillName;
+                pInfo.HudChoice = new(Name: e.PlayerName);
 
                 SkillUtils.CloseMenu(p);
                 Instance.SkillAction(enemySkill.ToString(), "EnableSkill", [p]);

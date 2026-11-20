@@ -128,6 +128,7 @@ namespace src.player.skills
 
                 targetInfo.Skill = inheritedSkill;
                 targetInfo.SpecialSkill = skillName;
+                targetInfo.HudChoice = new(Name: fallenInfo.PlayerName);
 
                 SkillUtils.CloseMenu(target);
 

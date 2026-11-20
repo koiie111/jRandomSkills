@@ -115,6 +115,7 @@ namespace src.player.skills
             bountyTargets[enemy.Key()] = 0;
             ownerToTarget[player.Key()] = enemy.Key();
             playerInfo.SkillUsed = true;
+            playerInfo.HudChoice = new(Name: enemy.PlayerName);
 
             int reward = SkillsInfo.GetValue<int>(skillName, "reward");
 

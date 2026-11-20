@@ -105,6 +105,7 @@ namespace src.player.skills
             deafPlayers.TryAdd(enemy.Key(), 0);
             playersToTarget[player.Key()] = enemy.Key();
             playerInfo.SkillUsed = true;
+            playerInfo.HudChoice = new(Name: enemy.PlayerName);
 
             var enemyEvent = PlayerManager.GetPlayerFromEvent(enemy);
             if (enemyEvent == null || !enemyEvent.IsValid) return;

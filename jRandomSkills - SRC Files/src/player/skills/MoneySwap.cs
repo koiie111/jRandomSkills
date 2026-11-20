@@ -72,6 +72,7 @@ namespace src.player.skills
 
             SwapMoney(player, enemy);
             playerInfo.SkillUsed = true;
+            playerInfo.HudChoice = new(Name: enemy.PlayerName);
             playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("moneyswap_player_info", enemy.PlayerName));
 
             var enemyEvent = PlayerManager.GetPlayerFromEvent(enemy);

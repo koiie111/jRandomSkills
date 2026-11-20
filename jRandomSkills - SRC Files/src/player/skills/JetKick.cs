@@ -103,6 +103,7 @@ namespace src.player.skills
             if (enemyEvent == null || !enemyEvent.IsValid) return;
 
             playerInfo.SkillUsed = true;
+            playerInfo.HudChoice = new(Name: enemy.PlayerName);
 
             playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("jetkick_player_info", enemy.PlayerName));
             enemyEvent.Notify($" {ChatColors.Red}" + enemyEvent.GetTranslation("jetkick_enemy_info"));

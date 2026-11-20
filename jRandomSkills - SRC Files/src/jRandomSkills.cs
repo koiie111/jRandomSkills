@@ -369,6 +369,7 @@ namespace src
             {
                 if (skill == value) return;
                 skill = value;
+                HudChoice = null;
                 Event.InvalidateActiveSkills();
             }
         }
@@ -389,6 +390,7 @@ namespace src
         public DateTime SkillDescriptionHudExpired { get; set; }
         public string? PrintHTML { get; set; }
         public int HideHUD { get; set; }
+        internal Hud.SkillChoice? HudChoice { get; set; }
         public bool SkillUsed = false;
         public bool? HudOnDeathBlocked { get; set; }
     }

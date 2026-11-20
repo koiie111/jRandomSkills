@@ -6,17 +6,22 @@
                 <Label text="{s:jrs_notice}" class="jrs-description" />
             </Panel>
             <Panel id="jrs_skill" class="jrs-card jrs-hidden" hittest="false">
-                <Label text="{s:jrs_icon}" class="jrs-icon" />
+                <Panel class="jrs-icon" hittest="false">
+                    <Label text="{s:jrs_icon}" class="jrs-icon-glyph" />
+                </Panel>
                 <Panel class="jrs-copy" hittest="false">
-                    <Panel class="jrs-eyebrow" hittest="false">
-                        <Label text="{s:jrs_kind}" class="jrs-kind" />
-                        <Label text="{s:jrs_observed}" class="jrs-observed" />
+                    <Label text="{s:jrs_observed}" class="jrs-observed" />
+                    <Panel class="jrs-card-heading" hittest="false">
+                        <Label text="{s:jrs_name}" class="jrs-name" />
+                        <Label id="jrs_kind_label" text="{s:jrs_kind}" class="jrs-kind jrs-hidden" />
                     </Panel>
-                    <Label text="{s:jrs_name}" class="jrs-name" />
-                    <Label text="{s:jrs_description}" class="jrs-description" />
-                    <Label text="{s:jrs_action}" class="jrs-action" />
-                    <Label id="jrs_bind_line" text="{s:jrs_bind}" class="jrs-bind jrs-hidden" />
-                    <Label text="{s:jrs_status}" class="jrs-status" />
+                    <Label id="jrs_effect" text="{s:jrs_description}" class="jrs-description jrs-hidden" />
+                    <Label id="jrs_action_line" text="{s:jrs_action}" class="jrs-action jrs-hidden" />
+                    <Label id="jrs_status_line" text="{s:jrs_status}" class="jrs-status jrs-hidden" />
+                    <Panel id="jrs_bind_line" class="jrs-bind jrs-hidden" hittest="false">
+                        <Label text="{s:jrs_bind}" class="jrs-bind-caption" />
+                        <Label text="{s:jrs_bind_command}" class="jrs-bind-command" />
+                    </Panel>
                 </Panel>
             </Panel>
         </Panel>

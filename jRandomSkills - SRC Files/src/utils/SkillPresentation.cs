@@ -22,6 +22,7 @@ internal static class SkillPresentation
     public static string? Description(Skills skill) => skill switch
     {
         Skills.GuidedBullet => "jrs_guided_description",
+        Skills.Partner => "jrs_partner_description",
         Skills.BlastShot => "jrs_blast_description",
         _ => null
     };
@@ -29,6 +30,7 @@ internal static class SkillPresentation
     public static string Action(Skills skill, bool usesBind) => skill switch
     {
         Skills.GuidedBullet => "jrs_guided",
+        Skills.Partner => "jrs_partner",
         Skills.Dash => "jrs_dash",
         Skills.BunnyHop => "jrs_hop",
         Skills.PawelJumper => "jrs_dash",
@@ -41,7 +43,7 @@ internal static class SkillPresentation
             or Skills.ExpensiveAmmo or Skills.Gambler or Skills.Giant or Skills.Glitch
             or Skills.Inheritance or Skills.Jammer or Skills.JetKick or Skills.JumpBan
             or Skills.JumpCurse or Skills.LifeSwap or Skills.Magnifier or Skills.MoneySwap
-            or Skills.Nemesis or Skills.Nightmare or Skills.Partner or Skills.Poison
+            or Skills.Nemesis or Skills.Nightmare or Skills.Poison
             or Skills.PrimaryBan or Skills.Thief or Skills.Voodoo or Skills.WildThrow => "jrs_pick",
         _ => usesBind ? "jrs_press" : "jrs_passive"
     };

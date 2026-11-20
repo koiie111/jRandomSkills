@@ -16,8 +16,9 @@ namespace src.utils;
 
 internal static partial class Hud
 {
-    internal sealed record Option(string Label, Action<CCSPlayerController>? Select);
-    private sealed record MenuView(string Title, string Body, Option[] Options, Skills? Picker)
+    internal sealed record Option(string Label, Action<CCSPlayerController>? Select, string? Description = null);
+    internal readonly record struct SkillChoice(string? Name = null, string? Translation = null, Skills? Skill = null);
+    private sealed record MenuView(string Title, string Body, Option[] Options, Skills? Picker, bool Welcome = false)
     {
         public int Page { get; set; }
     }
@@ -40,7 +41,7 @@ internal static partial class Hud
         public string RawStatus { get; set; } = "";
         public string Status { get; set; } = "";
         public string Summary { get; set; } = "";
-        public (Skills Skill, Skills Special, float? Chance, string Language, bool Observer, bool Drawing)? Card { get; set; }
+        public (Skills Skill, Skills Special, float? Chance, string Language, bool Observer, bool Drawing, SkillChoice? Choice)? Card { get; set; }
     }
 
     private const int PageSize = 6;
@@ -165,7 +166,7 @@ internal static partial class Hud
         var viewer = For(player);
         if (!viewer.WelcomeRead && player.SteamID != 0) ReadWelcome(player);
         if (!safe && viewer.Menu != null && viewer.Menu == viewer.AutomaticWelcome)
-            CloseModal(player);
+            CloseModal(player, preservePendingPicker: true);
         if (safe && viewer.WelcomePending && !viewer.WelcomeConfirmed && viewer.Menu == null && viewer.Pending == null)
             viewer.Pending = viewer.AutomaticWelcome = Welcome(player);
         if (viewer.Pending != null && Environment.TickCount64 >= viewer.NextMenuAttempt)
@@ -200,7 +201,7 @@ internal static partial class Hud
         }
 
         var key = (info.Skill, info.SpecialSkill, info.SkillChance, Localization.GetLangCode(player),
-            observed != null, info.IsDrawing);
+            observed != null, info.IsDrawing, info.HudChoice);
         if (viewer.Card != key)
         {
             viewer.Card = key;
@@ -210,15 +211,35 @@ internal static partial class Hud
                 name = $"{player.GetSkillName(info.SpecialSkill)} · {name}";
             var (icon, kind) = SkillPresentation.Category(skill);
             Write(player, viewer, "jrs_name", name);
-            Write(player, viewer, "jrs_description", skill == Skills.None ? "" : Description(player, skill, info.SkillChance));
+            var description = skill == Skills.None ? "" : Description(player, skill, info.SkillChance, compact: true);
+            Write(player, viewer, "jrs_description", description);
+            SetClass(player, viewer, "jrs_effect", "jrs-shown", description.Length > 0);
             Write(player, viewer, "jrs_kind", skill == Skills.None ? "" : T(player, kind));
+            SetClass(player, viewer, "jrs_kind_label", "jrs-shown", skill != Skills.None);
             Write(player, viewer, "jrs_icon", skill == Skills.None ? "·" : icon);
             SetClass(player, viewer, "jrs_skill", "jrs-negative", kind == "jrs_debuff");
             SetClass(player, viewer, "jrs_skill", "jrs-mixed", kind == "jrs_mixed");
-            Write(player, viewer, "jrs_action", skill == Skills.None || observed != null ? "" :
-                T(player, SkillPresentation.Action(skill, BoundSkills.Contains(skill))));
+
+            string action = "";
+            if (!info.IsDrawing && info.HudChoice is { } choice)
+            {
+                var label = choice.Skill is { } selectedSkill ? player.GetSkillName(selectedSkill) :
+                    choice.Translation != null ? T(player, choice.Translation) : choice.Name;
+                action = T(player, "jrs_choice", label ?? "");
+            }
+            else if (skill != Skills.None && observed == null)
+            {
+                string actionKey = SkillPresentation.Action(skill, BoundSkills.Contains(skill));
+                if (actionKey == "jrs_pick" && !BoundSkills.Contains(skill)) actionKey = "jrs_choose";
+                if (actionKey != "jrs_passive" && (actionKey != "jrs_press" ||
+                    !description.Contains(T(player, "jrs_skill_key"), StringComparison.OrdinalIgnoreCase)))
+                    action = T(player, actionKey);
+            }
+            Write(player, viewer, "jrs_action", action);
+            SetClass(player, viewer, "jrs_action_line", "jrs-shown", action.Length > 0);
             var showBind = observed == null && BoundSkills.Contains(skill);
-            Write(player, viewer, "jrs_bind", showBind ? T(player, "jrs_bind", Bind) : "");
+            Write(player, viewer, "jrs_bind", showBind ? T(player, "jrs_bind") : "");
+            Write(player, viewer, "jrs_bind_command", showBind ? Bind : "");
             SetClass(player, viewer, "jrs_bind_line", "jrs-shown", showBind);
         }
         Write(player, viewer, "jrs_observed", observed ?? "");
@@ -232,6 +253,7 @@ internal static partial class Hud
             }
         }
         Write(player, viewer, "jrs_status", viewer.Status);
+        SetClass(player, viewer, "jrs_status_line", "jrs-shown", viewer.Status.Length > 0);
     }
 
     private static void Write(CCSPlayerController player, Viewer viewer, string name, string value)
@@ -252,9 +274,9 @@ internal static partial class Hud
         writes++;
     }
 
-    private static string Description(CCSPlayerController player, Skills skill, float? chance = null)
+    internal static string Description(CCSPlayerController player, Skills skill, float? chance = null, bool compact = false)
     {
-        var key = SkillPresentation.Description(skill);
+        var key = compact ? SkillPresentation.Description(skill) : null;
         return key != null ? T(player, key) : player.GetSkillDescription(skill, chance)
             .Replace("[css_useskill]", T(player, "jrs_skill_key"), StringComparison.OrdinalIgnoreCase);
     }
@@ -272,14 +294,6 @@ internal static partial class Hud
     public static void OpenMenu(CCSPlayerController player, string title, Option[] options, string body = "")
         => Request(player, new MenuView(title, body, options, null));
 
-    public static void ShowSkillDetails(CCSPlayerController player, Skills skill)
-    {
-        var body = Description(player, skill);
-        if (skill != Skills.None) body += "\n" + T(player, SkillPresentation.Action(skill, BoundSkills.Contains(skill)));
-        if (BoundSkills.Contains(skill)) body += "\n" + T(player, "jrs_bind", Bind);
-        OpenMenu(player, player.GetSkillName(skill), [new(T(player, "jrs_back"), menu.Menu.DisplaySkillsList)], body);
-    }
-
     private static void Request(CCSPlayerController player, MenuView view)
     {
         if (!Valid(player)) return;
@@ -291,8 +305,9 @@ internal static partial class Hud
     private static void TryOpen(CCSPlayerController player, Viewer viewer)
     {
         if (viewer.Pending == null) return;
-        EnsurePanels();
         viewer.NextMenuAttempt = Environment.TickCount64 + 500;
+        if (viewer.Pending.Picker != null && viewer.Menu is { Picker: null }) return;
+        EnsurePanels();
         if (modal!.IsOpenFor(player))
         {
             viewer.Menu = viewer.Pending;
@@ -319,14 +334,24 @@ internal static partial class Hud
         view.Page = Math.Clamp(view.Page, 0, last);
         modal!.SetVariableFor(player, "jrs_menu_title", Plain(view.Title));
         modal.SetVariableFor(player, "jrs_menu_body", Plain(view.Body));
+        modal.SetClassFor(player, "jrs_menu_body_line", "jrs-shown", view.Body.Length > 0);
+        modal.SetClassFor(player, "jrandomskills_menu", "jrs-intro", view.Welcome);
+        modal.SetClassFor(player, "jrs_intro_brand", "jrs-shown", view.Welcome);
+        modal.SetClassFor(player, "jrs_intro_bind", "jrs-shown", view.Welcome);
+        if (view.Welcome)
+            modal.SetVariableFor(player, "jrs_intro_note", T(player, "jrs_welcome_note"));
         modal.SetClassFor(player, "jrs_pages", "jrs-shown", last > 0);
         modal.SetVariableFor(player, "jrs_page", $"{view.Page + 1} / {last + 1}");
         for (var row = 0; row < PageSize; row++)
         {
             var index = view.Page * PageSize + row;
             modal.SetClassFor(player, $"jrs_option{row}", "jrs-shown", index < view.Options.Length);
-            if (index < view.Options.Length)
-                modal.SetVariableFor(player, $"jrs_row{row}", Plain(view.Options[index].Label));
+            if (index >= view.Options.Length) continue;
+            var option = view.Options[index];
+            modal.SetVariableFor(player, $"jrs_row{row}", Plain(option.Label));
+            modal.SetVariableFor(player, $"jrs_row_desc{row}", Plain(option.Description));
+            modal.SetClassFor(player, $"jrs_option{row}", "jrs-readonly", option.Select == null);
+            modal.SetClassFor(player, $"jrs_option_desc{row}", "jrs-shown", option.Description != null);
         }
     }
 
@@ -354,7 +379,7 @@ internal static partial class Hud
                     viewer.WelcomePending = false;
                     viewer.AutomaticWelcome = null;
                 }
-                CloseModal(ev.Player);
+                CloseModal(ev.Player, preservePendingPicker: true);
                 return;
         }
         const string prefix = "jrs_option";
@@ -367,10 +392,10 @@ internal static partial class Hud
 
     internal static void DismissMenu(CCSPlayerController player) => CloseModal(player);
 
-    private static void CloseModal(CCSPlayerController player)
+    private static void CloseModal(CCSPlayerController player, bool preservePendingPicker = false)
     {
         var viewer = For(player);
-        viewer.Pending = null;
+        if (!preservePendingPicker || viewer.Pending?.Picker == null) viewer.Pending = null;
         viewer.Menu = null;
         modal?.Close(player);
     }
@@ -433,8 +458,8 @@ internal static partial class Hud
     }
 
     private static MenuView Welcome(CCSPlayerController player) =>
-        new(T(player, "jrs_welcome_title"), T(player, "jrs_welcome_body", Bind),
-            [new(T(player, "jrs_ok"), ConfirmWelcome)], null);
+        new(T(player, "jrs_welcome_title"), T(player, "jrs_welcome_body"),
+            [new(T(player, "jrs_ok"), ConfirmWelcome)], null, Welcome: true);
 
     public static void ShowWelcome(CCSPlayerController? player)
     {
@@ -473,7 +498,7 @@ internal static partial class Hud
         var viewer = For(player);
         viewer.WelcomePending = false;
         viewer.AutomaticWelcome = null;
-        CloseModal(player);
+        CloseModal(player, preservePendingPicker: true);
         if (viewer.WelcomeConfirmed) return;
         viewer.WelcomeConfirmed = true;
         string? connection = Config.LoadedConfig.HudMySqlConnectionString;
