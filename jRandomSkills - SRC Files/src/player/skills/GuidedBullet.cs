@@ -18,6 +18,7 @@ public sealed class GuidedBullet : ISkill
         public uint PawnHandle { get; } = pawn.EntityHandle.Raw;
         public CCSWeaponBase Gun { get; } = gun;
         public uint GunHandle { get; } = gun.EntityHandle.Raw;
+        public int SecondaryTick { get; } = gun.NextSecondaryAttackTick;
         public int PrimaryTick { get; } = gun.NextPrimaryAttackTick;
         public bool ReleasedTrigger { get; set; } = (player.Buttons & PlayerButtons.Attack) == 0;
         public CDynamicProp? Camera { get; set; }
@@ -55,9 +56,11 @@ public sealed class GuidedBullet : ISkill
         if (spent.Contains(key) || player.IsBot || player.ControllingBot ||
             SkillPackPlayers.LivePawn(player) is not { MoveType: MoveType_t.MOVETYPE_WALK } pawn ||
             SkillPackPlayers.Gun(pawn) is not { Clip1: > 0 } gun ||
-            gun.NextPrimaryAttackTick > Server.TickCount || gun.InReload) return;
+            gun.NextPrimaryAttackTick > Server.TickCount || gun.InReload ||
+            (gun.DesignerName is "weapon_glock" or "weapon_famas" && gun.As<CCSWeaponBaseGun>().BurstShotsRemaining > 0)) return;
         shots.Add(key, new Shot(player, pawn, gun));
         SetPrimary(gun, int.MaxValue);
+        SetSecondary(gun, int.MaxValue);
         player.PrintToChat(player.GetTranslationWithoutIlliterate("guidedbullet_armed"));
     }
 
@@ -70,8 +73,11 @@ public sealed class GuidedBullet : ISkill
         foreach (uint key in iterationKeys)
         {
             if (!shots.TryGetValue(key, out var shot)) continue;
+            if (shot.Camera != null && tick < shot.NextStep && tick < shot.EndTick) continue;
             if (SkillPackPlayers.LivePawn(shot.Player)?.EntityHandle.Raw != shot.PawnHandle ||
-                shot.Pawn.WeaponServices?.ActiveWeapon.Raw != shot.GunHandle)
+                shot.Pawn.WeaponServices?.ActiveWeapon.Raw != shot.GunHandle ||
+                shot.Gun.InReload || shot.Gun.NextPrimaryAttackTick != int.MaxValue ||
+                shot.Gun.NextSecondaryAttackTick != int.MaxValue)
             {
                 Stop(key);
                 continue;
@@ -99,14 +105,14 @@ public sealed class GuidedBullet : ISkill
                 continue;
             }
 
-            if (tick >= shot.NextStep) Step(key, shot, tick);
+            Step(key, shot, tick);
         }
     }
 
     private static bool Launch(uint key, Shot shot, int tick)
     {
         if (shot.Gun is not { IsValid: true, Clip1: > 0 } ||
-            shot.Pawn.AbsOrigin is not { } origin || shot.Pawn.CameraServices is not { } services) return false;
+            shot.Pawn.MoveType != MoveType_t.MOVETYPE_WALK || shot.Pawn.AbsOrigin is not { } origin || shot.Pawn.CameraServices is not { } services) return false;
         var start = new Vector(origin.X, origin.Y, origin.Z + shot.Pawn.ViewOffset.Z);
         if (EntityManager.CreateTrackedDynamicProp(key) is not { IsValid: true } camera) return false;
         var direction = SkillUtils.GetForwardVector(shot.Pawn.EyeAngles);
@@ -215,8 +221,13 @@ public sealed class GuidedBullet : ISkill
     private static void Stop(uint key)
     {
         if (!shots.Remove(key, out var shot)) return;
-        if (shot.Gun.IsValid && shot.Gun.EntityHandle.Raw == shot.GunHandle && shot.Gun.NextPrimaryAttackTick == int.MaxValue)
-            SetPrimary(shot.Gun, Math.Max(shot.PrimaryTick, Server.TickCount + 1));
+        if (shot.Gun.IsValid && shot.Gun.EntityHandle.Raw == shot.GunHandle)
+        {
+            if (shot.Gun.NextPrimaryAttackTick == int.MaxValue)
+                SetPrimary(shot.Gun, Math.Max(shot.PrimaryTick, Server.TickCount + 1));
+            if (shot.Gun.NextSecondaryAttackTick == int.MaxValue)
+                SetSecondary(shot.Gun, Math.Max(shot.SecondaryTick, Server.TickCount + 1));
+        }
         if (shot.Camera == null) return;
 
         flying--;
@@ -238,6 +249,12 @@ public sealed class GuidedBullet : ISkill
     {
         gun.NextPrimaryAttackTick = tick;
         Utilities.SetStateChanged(gun, "CBasePlayerWeapon", "m_nNextPrimaryAttackTick");
+    }
+
+    private static void SetSecondary(CCSWeaponBase gun, int tick)
+    {
+        gun.NextSecondaryAttackTick = tick;
+        Utilities.SetStateChanged(gun, "CBasePlayerWeapon", "m_nNextSecondaryAttackTick");
     }
 
     private static void SetMoveType(CCSPlayerPawn pawn, MoveType_t moveType, MoveType_t actual)

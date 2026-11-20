@@ -37,11 +37,13 @@ public sealed class BoobyTrappedGun : ISkill
             traps.Remove(trap.WeaponHandle);
             if (player.Team == trap.Team) return;
             int damage = Math.Clamp(SkillsInfo.GetValue<int>(Skills.BoobyTrappedGun, "Damage"), 1, 1000);
-            var owner = PlayerManager.GetController(trap.Owner);
+            uint playerHandle = player.Key();
+            uint pawnHandle = pawn.EntityHandle.Raw;
             Server.NextFrame(() =>
             {
-                if (SkillPackPlayers.LivePawn(player)?.EntityHandle.Raw == pawn.EntityHandle.Raw)
-                    SkillUtils.TakeHealth(pawn, damage, owner);
+                var target = SkillPackPlayers.LivePawn(PlayerManager.GetController(playerHandle));
+                if (target != null && target.EntityHandle.Raw == pawnHandle)
+                    SkillUtils.TakeHealth(target, damage, PlayerManager.GetController(trap.Owner));
             });
             return;
         }

@@ -47,7 +47,7 @@ internal static class HeadScaleState
     private const string Head = "m_flBigHeadScale";
     private const string Mutators = "m_nActiveMutators";
     private const int BigHeadFlag = 1;
-    private sealed record Applied(CCSPlayerPawn Pawn, uint Handle, float OriginalScale, float Scale, int Bonus);
+    private sealed record Applied(CCSPlayerPawn Pawn, uint Handle, float OriginalScale, float Scale, int BaseMaxHealth, int Bonus);
     private static readonly Dictionary<uint, Applied> active = [];
     private static bool ownsFlag;
     private static int headOffset;
@@ -78,12 +78,29 @@ internal static class HeadScaleState
         if (active.Count == 0)
             jRandomSkills.Instance.RegisterListener<Listeners.OnServerPostEntityThink>(RefreshActiveHeads);
         scale = Math.Clamp(scale, 0.25f, 3f);
-        active[key] = new(pawn, pawn.EntityHandle.Raw, Schema.GetRef<float>(pawn.Handle, "CCSPlayerPawn", Head), scale, bonus);
+        active[key] = new(pawn, pawn.EntityHandle.Raw, Schema.GetRef<float>(pawn.Handle, "CCSPlayerPawn", Head), scale, pawn.MaxHealth, bonus);
         SetScale(pawn, scale);
         if (bonus == 0) return;
         pawn.MaxHealth += bonus;
         pawn.Health += bonus;
         NotifyHealth(pawn);
+    }
+
+    internal static HookResult OnSpawn(EventPlayerSpawn e, GameEventInfo info)
+    {
+        var player = PlayerManager.GetPlayerEvent(e.Userid);
+        var skill = PlayerManager.GetPlayer(player)?.Skill;
+        if (player != null && skill is Skills.BigHead or Skills.MicroHead)
+        {
+            uint key = player.Key();
+            Server.NextFrame(() =>
+            {
+                var spawned = PlayerManager.GetController(key);
+                if (spawned != null && PlayerManager.GetPlayer(spawned)?.Skill == skill)
+                    jRandomSkills.Instance.SkillAction(skill.Value.ToString(), "EnableSkill", [spawned]);
+            });
+        }
+        return HookResult.Continue;
     }
 
     internal static void OnDeath(EventPlayerDeath e)
@@ -101,9 +118,10 @@ internal static class HeadScaleState
             SetScale(pawn, saved.OriginalScale);
             if (saved.Bonus > 0)
             {
-                pawn.MaxHealth = Math.Max(1, pawn.MaxHealth - saved.Bonus);
+                int remainingBonus = Math.Clamp(pawn.MaxHealth - saved.BaseMaxHealth, 0, saved.Bonus);
+                pawn.MaxHealth -= remainingBonus;
                 if (pawn.Health > 0)
-                    pawn.Health = Math.Clamp(pawn.Health - saved.Bonus, 1, pawn.MaxHealth);
+                    pawn.Health = Math.Clamp(pawn.Health - remainingBonus, 1, pawn.MaxHealth);
                 NotifyHealth(pawn);
             }
         }

@@ -23,7 +23,7 @@ public sealed class FieldDressing : ISkill
         var end = start + SkillUtils.GetForwardVector(pawn.EyeAngles) *
             Math.Clamp(SkillsInfo.GetValue<float>(Skills.FieldDressing, "Range"), 1, 2000);
         var trace = RayTrace.TraceShape(player, start, end);
-        if (trace == null || !trace.Value.HitPlayer(out var teammate) || teammate == null ||
+        if (trace is not { DidHit: true, IsAllSolid: false } hit || !hit.HitPlayer(out var teammate) || teammate == null ||
             teammate.Team != player.Team || teammate.Key() == key) return;
         if (SkillPackPlayers.LivePawn(teammate) is not { } target || target.Health >= target.MaxHealth) return;
 

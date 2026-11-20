@@ -151,12 +151,10 @@ namespace src.command
             {
                 // Reassigning Big Head must not refill health after its bonus has been spent.
                 if (skillPlayer.Skill != Skills.BigHead || skill.Skill != Skills.BigHead)
-                {
                     Instance.SkillAction(skillPlayer.Skill.ToString(), "DisableSkill", [targetPlayer]);
-                    skillPlayer.Skill = skill.Skill;
-                    skillPlayer.SpecialSkill = Skills.None;
-                    Instance.SkillAction(skill.Skill.ToString(), "EnableSkill", [targetPlayer]);
-                }
+                skillPlayer.Skill = skill.Skill;
+                skillPlayer.SpecialSkill = Skills.None;
+                Instance.SkillAction(skill.Skill.ToString(), "EnableSkill", [targetPlayer]);
                 Event.UpdateSkillHudExpired(skillPlayer, skill.Skill);
 
                 if (player == null)

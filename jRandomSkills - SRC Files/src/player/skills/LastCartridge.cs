@@ -10,15 +10,15 @@ public sealed class LastCartridge : ISkill
 
     public static void OnTakeDamage(CBaseEntity entity, CTakeDamageInfo damage)
     {
-        if (!SkillUtils.IsBulletDamage(damage)) return;
+        if (damage.Ability.Value is not { IsValid: true } weapon || !SkillUtils.FiresBullets(weapon.DesignerName)) return;
         var shooter = SkillPackPlayers.Controller(damage.Attacker.Value);
-        if (shooter == null || !SkillPackPlayers.HasSkill(shooter, Skills.LastCartridge) ||
-            SkillPackPlayers.LivePawn(shooter) is not { } pawn) return;
+        if (shooter == null || !SkillPackPlayers.HasSkill(shooter, Skills.LastCartridge)) return;
 
-        var gun = SkillPackPlayers.Gun(pawn);
-        if (gun?.VData is not { MaxClip1: > 1 } data ||
+        // The pre-damage hook runs before the firing weapon consumes its cartridge.
+        var gun = weapon.As<CCSWeaponBase>();
+        if (gun.VData is not { MaxClip1: > 1 } data ||
             data.WeaponType is not (CSWeaponType.WEAPONTYPE_PISTOL or CSWeaponType.WEAPONTYPE_RIFLE or CSWeaponType.WEAPONTYPE_SNIPER_RIFLE) ||
-            gun.Clip1 != 0) return;
+            gun.Clip1 != 1) return;
         damage.Damage *= Math.Clamp(SkillsInfo.GetValue<float>(Skills.LastCartridge, "Multiplier"), 1, 5);
     }
 

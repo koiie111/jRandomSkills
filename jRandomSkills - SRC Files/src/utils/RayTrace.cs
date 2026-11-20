@@ -11,6 +11,8 @@ namespace src.utils
     public static class RayTrace
     {
 
+        private static readonly Vector TraceMins = new(-0.5f, -0.5f, -0.5f);
+        private static readonly Vector TraceMaxs = new(0.5f, 0.5f, 0.5f);
         private static bool traceFailureLogged;
         
         public static bool IsAvailable => true;
@@ -72,10 +74,7 @@ namespace src.utils
 
             bool drawBeam = allowDebugBeam && Config.LoadedConfig.TraceRayBeam;
 
-            Vector mins = new(-0.5f, -0.5f, -0.5f);
-            Vector maxs = new(0.5f, 0.5f, 0.5f);
-
-            if (!TryTraceHull(startPos, endPos, mins, maxs, playerPawn, (ulong)mask, (ulong)contents, out var result))
+            if (!TryTraceHull(startPos, endPos, TraceMins, TraceMaxs, playerPawn, (ulong)mask, (ulong)contents, out var result))
                 return null;
 
             var traced = new CustomTraceResult(result, startPos, (ulong)mask, (ulong)contents, drawBeam);
