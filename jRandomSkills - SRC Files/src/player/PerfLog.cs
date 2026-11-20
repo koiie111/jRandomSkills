@@ -9,7 +9,7 @@ namespace src.player
     {
         private static readonly string logsFolder = Path.Combine(Instance.ModuleDirectory, "logs");
         private static readonly string sessionId = $"{DateTime.Now:yyyy-MM-dd_HH-mm-ss}";
-        private static StreamWriter? _writer;
+        private static BufferedFileLog? _writer;
         private static readonly object _writeLock = new();
 
         public static bool Enabled => Config.LoadedConfig.PerfMode;
@@ -68,7 +68,11 @@ namespace src.player
                 Count++;
                 if (ms > MaxMs) MaxMs = ms;
 
-                if (Raw.Count < maxRawSamples) Raw.Add(ms);
+                if (Raw.Count < maxRawSamples)
+                {
+                    Raw.Add(ms);
+                    rawSorted = false;
+                }
 
                 for (int i = 0; i < bucketBoundsMs.Length; i++)
                     if (ms <= bucketBoundsMs[i]) { Buckets[i]++; break; }
@@ -185,18 +189,17 @@ namespace src.player
         {
             lock (_writeLock)
             {
-                try
-                {
-                    if (_writer == null)
-                    {
-                        Directory.CreateDirectory(logsFolder);
-                        _writer = new StreamWriter(Path.Combine(logsFolder, $"perf_{sessionId}.txt"), append: true, System.Text.Encoding.UTF8) { AutoFlush = true };
-                    }
-                    _writer.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] [PERF] {message}");
-                }
-                catch
-                {
-                }
+                _writer ??= new BufferedFileLog(Path.Combine(logsFolder, $"perf_{sessionId}.txt"));
+                _writer.Write($"[{DateTime.Now:HH:mm:ss.fff}] [PERF] {message}");
+            }
+        }
+
+        internal static void Unload()
+        {
+            lock (_writeLock)
+            {
+                _writer?.Dispose();
+                _writer = null;
             }
         }
     }

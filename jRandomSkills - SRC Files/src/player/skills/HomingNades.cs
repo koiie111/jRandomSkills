@@ -4,13 +4,15 @@ using CounterStrikeSharp.API.Modules.Entities.Constants;
 using CounterStrikeSharp.API.Modules.Utils;
 using src.utils;
 using System.Collections.Concurrent;
+using Vector3 = System.Numerics.Vector3;
 
 namespace src.player.skills
 {
     public class HomingNades : ISkill
     {
         private const Skills skillName = Skills.HomingNades;
-        private readonly static ConcurrentDictionary<uint, Vector> nades = [];
+        private readonly record struct Flight(Vector3 Position, float? OriginalFuse = null);
+        private readonly static ConcurrentDictionary<uint, Flight> nades = [];
         private readonly static ConcurrentDictionary<uint, int> playersWithSkill = [];
 
         public static void LoadSkill()
@@ -21,96 +23,87 @@ namespace src.player.skills
         public static void NewRound()
         {
             nades.Clear();
+            playersWithSkill.Clear();
         }
 
         public static void OnTick()
         {
-            if (Server.TickCount % 10 != 0) return;
+            if (nades.IsEmpty || Server.TickCount % 10 != 0) return;
 
-            foreach (var index in nades.Keys.ToList())
+            float detonationRange = SkillsInfo.GetValue<float>(skillName, "detonationRange");
+            float maxVelocity = SkillsInfo.GetValue<float>(skillName, "maxVelocity");
+            List<(int Team, Vector3 Position)>? targets = null;
+            float strength = SkillsInfo.GetValue<float>(skillName, "strength");
+            foreach (var (handle, flight) in nades)
             {
-                if (!nades.TryGetValue(index, out var data)) continue;
-                Vector oldPos = data;
-
-                var nade = Utilities.GetEntityFromIndex<CBaseCSGrenadeProjectile>((int)index);
-                if (nade == null || !nade.IsValid || nade.AbsOrigin == null)
+                var nade = new CHandle<CBaseCSGrenadeProjectile>(handle).Value;
+                var origin = nade?.AbsOrigin;
+                if (nade == null || !nade.IsValid || origin == null)
                 {
-                    nades.TryRemove(index, out _);
+                    nades.TryRemove(handle, out _);
                     continue;
                 }
 
-                Vector currentPos = new(nade.AbsOrigin.X, nade.AbsOrigin.Y, nade.AbsOrigin.Z);
-                double distanceMoved = SkillUtils.GetDistance(currentPos, oldPos);
-                Vector? calculatedVelocity = CalculateVelocity(nade, nade.TeamNum);
+                Vector3 currentPos = new(origin.X, origin.Y, origin.Z);
+                float distanceMovedSquared = Vector3.DistanceSquared(currentPos, flight.Position);
+                targets ??= GetTargets();
+                Vector3? calculatedVelocity = CalculateVelocity(currentPos, nade.TeamNum, detonationRange, strength, targets);
 
-                bool isZero = calculatedVelocity?.IsZero() == true;
+                bool isZero = calculatedVelocity == Vector3.Zero;
 
-                if (distanceMoved < 4 || calculatedVelocity == null || isZero)
+                if (distanceMovedSquared < 16 || calculatedVelocity == null || isZero)
                 {
                     nade.DetonateTime = isZero ? 0f : nade.CreateTime + 1.5f;
                     Utilities.SetStateChanged(nade, "CBaseGrenade", "m_flDetonateTime");
 
-                    nades.TryRemove(index, out _);
+                    nades.TryRemove(handle, out _);
                     continue;
                 }
 
-                Vector currentVel = new(nade.Velocity.X, nade.Velocity.Y, nade.Velocity.Z);
-                float maxVelocity = SkillsInfo.GetValue<float>(skillName, "maxVelocity");
-                Vector newVelocity = currentVel + calculatedVelocity;
-
+                var velocity = nade.Velocity;
+                Vector3 newVelocity = new Vector3(velocity.X, velocity.Y, velocity.Z) + calculatedVelocity.Value;
                 float speed = newVelocity.Length();
                 if (speed > maxVelocity)
-                    newVelocity *= (maxVelocity / speed);
+                    newVelocity *= maxVelocity / speed;
 
-                nades[index] = currentPos;
-                nade.Teleport(null, null, newVelocity);
+                nades[handle] = flight with { Position = currentPos };
+                nade.Teleport(null, null, new Vector(newVelocity.X, newVelocity.Y, newVelocity.Z));
             }
         }
 
-        private static Vector? CalculateVelocity(CBaseCSGrenadeProjectile nade, int team)
+        private static List<(int Team, Vector3 Position)> GetTargets()
         {
-            if (nade.AbsOrigin == null) return null;
-
-            Vector? closetEnemyPos = null;
-            double minDistance = int.MaxValue;
-            Vector nadePos = nade.AbsOrigin;
-
-            foreach (var enemy in PlayerManager.GetTickPlayers().Where(p => p.IsValid && p.PawnIsAlive && p.TeamNum != team))
+            var players = PlayerManager.GetTickPlayers();
+            var targets = new List<(int Team, Vector3 Position)>(players.Count);
+            foreach (var player in players)
             {
-                var pawn = enemy.PlayerPawn.Value;
-                if (pawn?.IsValid != true || pawn.AbsOrigin == null) continue;
+                if (!player.IsValid || !player.PawnIsAlive) continue;
+                var pawn = player.PlayerPawn.Value;
+                if (pawn?.IsValid != true || pawn.AbsOrigin is not { } origin) continue;
+                targets.Add((player.TeamNum, new Vector3(origin.X, origin.Y, origin.Z)));
+            }
+            return targets;
+        }
 
-                double dist = SkillUtils.GetDistance(nadePos, pawn.AbsOrigin);
-                if (dist < SkillsInfo.GetValue<float>(skillName, "detonationRange"))
+        private static Vector3? CalculateVelocity(Vector3 position, int team, float range, float strength, List<(int Team, Vector3 Position)> targets)
+        {
+            Vector3? nearest = null;
+            float nearestSquared = float.PositiveInfinity;
+            foreach (var (targetTeam, origin) in targets)
+            {
+                if (targetTeam == team) continue;
+                float squared = Vector3.DistanceSquared(position, origin);
+                if (range > 0 && squared < range * range) return Vector3.Zero;
+                if (squared < nearestSquared)
                 {
-                    nades.TryRemove(nade.Index, out _);
-                    return Vector.Zero;
-                }
-
-                if (dist < minDistance)
-                {
-                    minDistance = dist;
-                    closetEnemyPos = pawn.AbsOrigin;
+                    nearestSquared = squared;
+                    nearest = origin;
                 }
             }
 
-            if (closetEnemyPos == null)
-                return null;
-
-            Vector direction = closetEnemyPos - nadePos;
-            float length = direction.Length();
-
-            if (length > 0)
-            {
-                float strength = SkillsInfo.GetValue<float>(skillName, "strength");
-                return new Vector(
-                    (direction.X / length) * strength,
-                    (direction.Y / length) * strength,
-                    (direction.Z / length) * strength
-                );
-            }
-
-            return Vector.Zero;
+            if (nearest == null) return null;
+            if (nearestSquared == 0) return Vector3.Zero;
+            return Vector3.Normalize(nearest.Value - position) * strength;
         }
 
         public static void OnEntitySpawned(CEntityInstance @event)
@@ -130,14 +123,19 @@ namespace src.player.skills
             var playerInfo = PlayerManager.GetPlayer(PlayerManager.GetPlayerEvent(player) ?? player);
             if (playerInfo?.Skill != skillName) return;
 
-            Vector pos = new(grenade.AbsOrigin?.X, grenade.AbsOrigin?.Y, grenade.AbsOrigin?.Z);
-            nades.TryAdd(grenade.Index, pos);
+            var origin = grenade.AbsOrigin;
+            Vector3 pos = origin == null ? Vector3.Zero : new(origin.X, origin.Y, origin.Z);
+            uint handle = grenade.EntityHandle.Raw;
+            if (!nades.TryAdd(handle, new Flight(pos))) return;
 
             Server.NextWorldUpdate(() =>
             {
-                if (grenade == null || !grenade.IsValid) return;
-                grenade.DetonateTime += 30f;
-                Utilities.SetStateChanged(grenade, "CBaseGrenade", "m_flDetonateTime");
+                if (!nades.TryGetValue(handle, out var flight)) return;
+                var projectile = new CHandle<CBaseCSGrenadeProjectile>(handle).Value;
+                if (projectile?.IsValid != true) return;
+                nades[handle] = flight with { OriginalFuse = projectile.DetonateTime };
+                projectile.DetonateTime += 30f;
+                Utilities.SetStateChanged(projectile, "CBaseGrenade", "m_flDetonateTime");
             });
         }
 
@@ -193,11 +191,29 @@ namespace src.player.skills
             SkillUtils.UpdateGrenadeCount(player, CsItem.HEGrenade, grenadeLimit);
         }
 
+        internal static void RestoreFuses()
+        {
+            foreach (var (handle, flight) in nades)
+            {
+                if (!nades.TryRemove(handle, out _) || flight.OriginalFuse is not float fuse) continue;
+                var projectile = new CHandle<CBaseCSGrenadeProjectile>(handle).Value;
+                if (projectile?.IsValid != true || projectile.DetonateTime != fuse + 30f) continue;
+                projectile.DetonateTime = fuse;
+                Utilities.SetStateChanged(projectile, "CBaseGrenade", "m_flDetonateTime");
+            }
+        }
+
+        public static void PlayerDisconnect(uint playerKey)
+        {
+            if (playersWithSkill.TryRemove(playerKey, out _) && playersWithSkill.IsEmpty)
+                RestoreFuses();
+        }
+
         public static void DisableSkill(CCSPlayerController player)
         {
             if (player == null || !player.IsValid) return;
 
-            playersWithSkill.TryRemove(player.Key(), out _);
+            PlayerDisconnect(player.Key());
             SkillUtils.UpdateGrenadeCount(player, CsItem.HEGrenade, 1);
         }
 

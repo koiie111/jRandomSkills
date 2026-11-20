@@ -27,11 +27,21 @@ namespace src.player
                 long perfStart = PerfLog.Start();
                 // Shared per-tick controller snapshot: the skill OnTick loop already scans the
                 // player list this frame, so reuse that native scan instead of running a second one.
-                var now = DateTime.Now;
+                DateTime now = default;
+                int tick = 0;
                 foreach (var player in PlayerManager.GetTickPlayers())
                 {
-                    if (player != null && player.IsValid)
-                        UpdatePlayerHud(player, now);
+                    if (player == null || !player.IsValid || player.IsBot) continue;
+
+                    if (now == default)
+                    {
+                        var gameRules = Instance.GameRules;
+                        if (gameRules == null || gameRules.WarmupPeriod || gameRules.GamePhase >= 5) break;
+                        now = DateTime.Now;
+                        tick = Server.TickCount;
+                    }
+
+                    UpdatePlayerHud(player, now, tick);
                 }
                 PerfLog.Sample("OnTick(hud)", perfStart);
             });
@@ -76,20 +86,15 @@ namespace src.player
                 Instance.GameRules.GameRestart = Instance.GameRules.RestartRoundTime < Server.CurrentTime;
         }
 
-        private static void UpdatePlayerHud(CCSPlayerController player, DateTime now)
+        private static void UpdatePlayerHud(CCSPlayerController player, DateTime now, int tick)
         {
-            if (player == null || !player.IsValid || player.IsBot) return;
-
-            // No skill HUD during warmup or after the match ended.
-            var gameRules = Instance?.GameRules;
-            if (gameRules == null || gameRules.WarmupPeriod == true || gameRules.GamePhase >= 5) return;
-
             var skillPlayer = PlayerManager.GetPlayer(PlayerManager.GetPlayerEvent(player) ?? player);
-            if (skillPlayer == null || skillPlayer.HideHUD >= Server.TickCount) return;
+            if (skillPlayer == null || skillPlayer.HideHUD >= tick) return;
 
             if (skillPlayer.HudSuppressedUntil > now) return;
 
-            if (player.PawnIsAlive && skillPlayer.SkillHudExpired < now && string.IsNullOrEmpty(skillPlayer.PrintHTML)) return;
+            bool alive = player.PawnIsAlive;
+            if (alive && skillPlayer.SkillHudExpired < now && string.IsNullOrEmpty(skillPlayer.PrintHTML)) return;
 
             if (SkillUtils.HasMenu(player))
             {
@@ -111,7 +116,7 @@ namespace src.player
                 infoLine = player.GetTranslationWithoutIlliterate("your_skill");
                 skillLine = player.GetTranslationWithoutIlliterate("none");
             }
-            else if (skillPlayer.IsDrawing && player.PawnIsAlive)
+            else if (skillPlayer.IsDrawing && alive)
             {
                 var randomSkill = skills[Random.Shared.Next(skills.Length)];
 
@@ -120,14 +125,18 @@ namespace src.player
             }
             else
             {
-                if (player.PawnIsAlive)
+                if (alive)
                 {
                     var skillInfo = SkillData.GetInfo(skillPlayer.Skill);
 
                     if (skillInfo != null)
                     {
                         infoLine = player.GetTranslationWithoutIlliterate("your_skill");
-                        skillLine = $"<font color='{skillInfo.Color}'>{player.GetSkillName(skillInfo.Skill, skillPlayer.SkillChance)}</font>";
+                        string name = player.GetSkillName(skillInfo.Skill, skillPlayer.SkillChance);
+                        ref var label = ref skillPlayer.HudSkillLabel;
+                        if (label.Name != name || label.Color != skillInfo.Color)
+                            label = (name, skillInfo.Color, $"<font color='{skillInfo.Color}'>{name}</font>");
+                        skillLine = label.Html;
 
                         if (skillInfo.Skill != Skills.None)
                         {

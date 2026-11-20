@@ -78,7 +78,7 @@ namespace src.utils
                 EntityType = entityType
             };
 
-            if (!Config.DebugEnabled(DebugCategory.Entity)) return;
+            if (!Debug.ShouldWrite(DebugCategory.Entity)) return;
 
             if (!alreadyTracked)
                 Debug.WriteToDebug($"[Entity] + {entityType} #{entityIndex} owner={DescribeOwner(ownerKey)} tracked={trackedEntities.Count}", DebugCategory.Entity);
@@ -94,7 +94,8 @@ namespace src.utils
         private static void LogEntityError(string message)
         {
             Server.PrintToConsole($"[EntityManager] {message}");
-            Debug.WriteToDebug($"[Entity] ! {message}", DebugCategory.Entity);
+            if (Debug.ShouldWrite(DebugCategory.Entity))
+                Debug.WriteToDebug($"[Entity] ! {message}", DebugCategory.Entity);
         }
 
         public static void RegisterExisting(CBaseEntity? entity, uint ownerKey, string entityType)
@@ -393,7 +394,7 @@ namespace src.utils
             bool wasTracked = trackedEntities.TryRemove(entityIndex, out var removed);
             if (wasTracked) RemoveOwned(removed.OwnerKey, entityIndex);
 
-            if (wasTracked && Config.DebugEnabled(DebugCategory.Entity))
+            if (wasTracked && Debug.ShouldWrite(DebugCategory.Entity))
                 Debug.WriteToDebug($"[Entity] - {removed.EntityType} #{entityIndex} owner={DescribeOwner(removed.OwnerKey)} tracked={trackedEntities.Count}", DebugCategory.Entity);
 
             if (SuppressKills)
@@ -406,7 +407,7 @@ namespace src.utils
                 {
                     if (knownHandles.TryRemove(entityIndex, out var knownRaw) && knownRaw != entity.EntityHandle.Raw)
                     {
-                        if (Config.DebugEnabled(DebugCategory.Entity))
+                        if (Debug.ShouldWrite(DebugCategory.Entity))
                             Debug.WriteToDebug($"[Entity] skip kill #{entityIndex}: index now holds {entity.DesignerName}", DebugCategory.Entity);
                         return false;
                     }

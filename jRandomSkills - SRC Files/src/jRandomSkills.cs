@@ -69,8 +69,11 @@ namespace src
                 if (PlayerManager.GetPlayer(player)?.Skill == Skills.Partner) src.player.skills.Partner.DisableSkill(player);
             }
             src.player.skills.Adrenaline.NewRound();
+            src.player.skills.HomingNades.RestoreFuses();
             Event.Unload();
             Debug.Unload();
+            PerfLog.Unload();
+            Localization.Unload();
 
             base.Unload(hotReload);
         }
@@ -368,16 +371,37 @@ namespace src
         public required string PlayerName { get; set; }
         public required uint PlayerIndex { get; set; }
         public required uint PlayerKey { get; set; }
-        public Skills Skill { get; set; }
+        private Skills skill;
+        public Skills Skill
+        {
+            get => skill;
+            set
+            {
+                if (skill == value) return;
+                skill = value;
+                Event.InvalidateActiveSkills();
+            }
+        }
         public Skills SpecialSkill { get; set; }
         public float? SkillChance { get; set; }
-        public bool IsDrawing { get; set; }
+        private bool isDrawing;
+        public bool IsDrawing
+        {
+            get => isDrawing;
+            set
+            {
+                if (isDrawing == value) return;
+                isDrawing = value;
+                Event.InvalidateActiveSkills();
+            }
+        }
         public DateTime SkillHudExpired { get; set; }
         public DateTime SkillDescriptionHudExpired { get; set; }
         public DateTime HudSuppressedUntil { get; set; }
         public string? PrintHTML { get; set; }
         public int HideHUD { get; set; }
         public bool SkillUsed = false;
+        internal (string Name, string Color, string Html) HudSkillLabel;
         public bool? HudOnDeathBlocked { get; set; }
         public HudCacheEntry? HudCache { get; set; }
     }

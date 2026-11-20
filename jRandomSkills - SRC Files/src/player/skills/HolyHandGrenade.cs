@@ -23,16 +23,16 @@ namespace src.player.skills
             if (!name.EndsWith("hegrenade_projectile"))
                 return;
 
+            uint handle = @event.EntityHandle.Raw;
             Server.NextFrame(() =>
             {
-                if (@event == null || !@event.IsValid) return;
-                var hegrenade = @event.As<CHEGrenadeProjectile>();
-                if (hegrenade == null || !hegrenade.IsValid) return;
+                var hegrenade = new CHandle<CHEGrenadeProjectile>(handle).Value;
+                if (hegrenade?.IsValid != true) return;
 
                 var playerPawn = hegrenade.Thrower.Value;
                 if (playerPawn == null || !playerPawn.IsValid) return;
 
-                var player = PlayerManager.GetTickPlayers().FirstOrDefault(p => p.PlayerPawn.Index == playerPawn.Index);
+                var player = PlayerManager.GetTickPlayers().FirstOrDefault(p => p.PlayerPawn.Raw == playerPawn.EntityHandle.Raw);
                 var playerInfo = PlayerManager.GetPlayer(player);
                 if (playerInfo?.Skill != skillName) return;
 
@@ -92,6 +92,8 @@ namespace src.player.skills
             SkillUtils.TryGiveWeapon(player, CsItem.HEGrenade);
             SkillUtils.UpdateGrenadeCount(player, CsItem.HEGrenade, grenadeLimit);
         }
+
+        public static void PlayerDisconnect(uint playerKey) => playersWithSkill.TryRemove(playerKey, out _);
 
         public static void DisableSkill(CCSPlayerController player)
         {

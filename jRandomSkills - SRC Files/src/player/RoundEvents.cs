@@ -265,7 +265,16 @@ namespace src.player
         private static HookResult RoundEnd(EventRoundEnd @event, GameEventInfo info)
         {
             Illiterate.Disable();
-            DispatchToActiveSkills("RoundEnd");
+            foreach (var handler in roundEndCallbacks.Active())
+            {
+                try
+                {
+                    long start = PerfLog.Start();
+                    handler.Invoke();
+                    PerfLog.Sample(handler.Label, start, 30.0, 1.0);
+                }
+                catch (Exception ex) { ReportCallbackFailure(handler.Label, ex); }
+            }
 
             lock (setLock)
             {
@@ -608,13 +617,12 @@ namespace src.player
                 }
 
                 PickContext? pickContext = null;
+                ILookup<CsTeam, uint>? chatTeams = null;
                 int assigned = 0, noSkillPlayer = 0, noPawn = 0;
 
                 foreach (var player in validPlayers)
                 {
                     if (player == null) continue;
-                    var teammates = validPlayers.Where(p => p != null && p.IsValid && p.Team == player.Team && p != player).ToList();
-                    string teammateSkills = "";
 
                     var skillPlayer = PlayerManager.GetPlayer(player);
                     if (skillPlayer == null)
@@ -701,7 +709,7 @@ namespace src.player
                     UpdateSkillHudExpired(skillPlayer, randomSkill.Skill);
                     assigned++;
 
-                    if (randomSkill.Display)
+                    if (randomSkill.Display && !player.IsBot)
                         Instance?.AddTimer(.6f, () =>
                         {
                             var descTarget = PlayerManager.GetController(playerIndex);
@@ -710,31 +718,37 @@ namespace src.player
                             SkillUtils.PrintToChat(descTarget, $"{ChatColors.DarkRed}{descTarget.GetSkillName(randomSkill.Skill)}{ChatColors.Lime}: {descTarget.GetSkillDescription(randomSkill.Skill)}", border: "tb");
                         }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
 
-                    if (Config.LoadedConfig.TeamMateSkillChatInfo)
+                    if (Config.LoadedConfig.TeamMateSkillChatInfo && !player.IsBot)
                     {
+                        chatTeams ??= validPlayers.Where(p => p.IsValid).ToLookup(p => p.Team, p => p.Key());
+                        var team = player.Team;
+                        var teammateKeys = chatTeams[team];
                         Instance?.AddTimer(.2f, () =>
                         {
-                            if (player == null || !player.IsValid) return;
+                            var recipient = PlayerManager.GetController(playerIndex);
+                            if (recipient == null || recipient.Team != team) return;
 
-                            foreach (var teammate in teammates)
+                            string? title = null;
+                            foreach (uint key in teammateKeys)
                             {
-                                var teammateInfo = PlayerManager.GetPlayer(teammate);
-                                if (teammateInfo != null && teammateInfo?.Skill != null)
+                                if (key == playerIndex) continue;
+                                var teammate = PlayerManager.GetController(key);
+                                if (teammate == null || teammate.Team != team) continue;
+                                var info = PlayerManager.GetPlayerByKey(key);
+                                if (info == null) continue;
+
+                                if (title == null)
                                 {
-                                    var skillInfo = SkillData.Skills.FirstOrDefault(p => p.Skill == teammateInfo.Skill);
-                                    teammateSkills += $" {ChatColors.DarkRed}\u202A{teammate.PlayerName}\u202C{ChatColors.Lime}: {(skillInfo == null ? player.GetSkillName(Skills.None) : player.GetSkillName(skillInfo.Skill, teammateInfo.SkillChance))}\n";
+                                    title = recipient.GetTranslationWithoutIlliterate("teammate_skills");
+                                    SkillUtils.PrintToChat(recipient, string.Empty, title: title, border: "t");
                                 }
+                                var skill = SkillData.GetInfo(info.Skill);
+                                string name = skill == null ? recipient.GetSkillName(Skills.None) : recipient.GetSkillName(skill.Skill, info.SkillChance);
+                                SkillUtils.PrintToChat(recipient, $" {ChatColors.DarkRed}\u202A{teammate.PlayerName}\u202C{ChatColors.Lime}: {name}", title: title, border: "");
                             }
 
-                            if (!string.IsNullOrEmpty(teammateSkills))
-                            {
-                                SkillUtils.PrintToChat(player, string.Empty, title: player.GetTranslationWithoutIlliterate("teammate_skills"), border: "t");
-                                foreach (string text in teammateSkills.Split("\n"))
-                                    if (!string.IsNullOrEmpty(text))
-                                        SkillUtils.PrintToChat(player, text, title: player.GetTranslationWithoutIlliterate("teammate_skills"), border: "");
-                                if (!randomSkill.Display)
-                                    SkillUtils.PrintToChat(player, string.Empty, title: player.GetTranslationWithoutIlliterate("teammate_skills"), border: "b");
-                            }
+                            if (title != null && !randomSkill.Display)
+                                SkillUtils.PrintToChat(recipient, string.Empty, title: title, border: "b");
                         }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
                     }
                 }
