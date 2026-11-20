@@ -48,7 +48,7 @@ namespace src.player
             Instance.RegisterListener<OnClientDisconnect>(OnPlayerDisconnect);
             // Instance.RegisterEventHandler<EventPlayerChat>(PlayerChat);
             Instance.RegisterEventHandler<EventPlayerSpawned>(PlayerSpawned);
-            Instance.RegisterEventHandler<EventPlayerSpawn>(SkillPackPlayers.OnSpawn);
+            Instance.RegisterEventHandler<EventPlayerSpawn>(OpenVisor.OnSpawn);
             Instance.RegisterEventHandler<EventRoundStart>(RoundStart);
             Instance.RegisterEventHandler<EventRoundEnd>(RoundEnd);
             Instance.RegisterEventHandler<EventRoundFreezeEnd>(RoundFreezeEnd);

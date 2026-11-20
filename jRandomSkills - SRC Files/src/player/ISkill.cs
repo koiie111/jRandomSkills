@@ -218,8 +218,8 @@ public enum Skills
     GlassCannon,
     Partner,
     OpenVisor,
-    MicroHead,
-    GuidedBullet,
+    // Keep the numeric IDs of skills introduced after the retired slot.
+    GuidedBullet = OpenVisor + 2,
     TurtleShield,
     FalseFootsteps,
     HotPotato,

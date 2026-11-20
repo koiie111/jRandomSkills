@@ -522,8 +522,6 @@
   "skill_bind_key": "You can replace i with another key.",
   "openvisor": "Open Visor",
   "openvisor_desc": "You gain bonus health, but enemy headshots deal extra damage to you.",
-  "microhead": "Micro Head",
-  "microhead_desc": "Your head shrinks for the round.",
   "guidedbullet": "Guided Bullet",
   "guidedbullet_desc": "Press [css_useSkill], fire, then steer with the mouse. Press the skill key again to stop.",
   "turtleshield": "Turtle Shell",

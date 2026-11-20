@@ -29,27 +29,9 @@ internal static class SkillPackPlayers
         return gun.VData?.GearSlot is gear_slot_t.GEAR_SLOT_PISTOL or gear_slot_t.GEAR_SLOT_RIFLE ? gun : null;
     }
 
-    internal static HookResult OnSpawn(EventPlayerSpawn e, GameEventInfo info)
-    {
-        var player = PlayerManager.GetPlayerEvent(e.Userid);
-        var skill = PlayerManager.GetPlayer(player)?.Skill;
-        if (player != null && skill is Skills.OpenVisor or Skills.MicroHead)
-        {
-            uint key = player.Key();
-            Server.NextFrame(() =>
-            {
-                var spawned = PlayerManager.GetController(key);
-                if (spawned != null && PlayerManager.GetPlayer(spawned)?.Skill == skill)
-                    jRandomSkills.Instance.SkillAction(skill.Value.ToString(), "EnableSkill", [spawned]);
-            });
-        }
-        return HookResult.Continue;
-    }
-
     internal static void ClearRound()
     {
         GuidedBullet.NewRound();
-        HeadScaleState.Clear();
         OpenVisor.NewRound();
         AirPause.NewRound();
         HotPotato.NewRound();

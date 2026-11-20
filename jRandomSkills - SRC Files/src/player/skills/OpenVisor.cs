@@ -30,6 +30,22 @@ public sealed class OpenVisor : ISkill
         NotifyHealth(pawn);
     }
 
+    internal static HookResult OnSpawn(EventPlayerSpawn e, GameEventInfo info)
+    {
+        var player = PlayerManager.GetPlayerEvent(e.Userid);
+        if (player != null && PlayerManager.GetPlayer(player)?.Skill == Skills.OpenVisor)
+        {
+            uint key = player.Key();
+            Server.NextFrame(() =>
+            {
+                var spawned = PlayerManager.GetController(key);
+                if (spawned != null && PlayerManager.GetPlayer(spawned)?.Skill == Skills.OpenVisor)
+                    EnableSkill(spawned);
+            });
+        }
+        return HookResult.Continue;
+    }
+
     public static void OnTakeDamage(CBaseEntity entity, CTakeDamageInfo damage)
     {
         var victim = SkillPackPlayers.Controller(entity);

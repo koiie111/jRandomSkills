@@ -2662,22 +2662,6 @@
     "Rarity": "Common"
   },
   {
-    "Scale": 0.65,
-    "NeedsTeammates": false,
-    "DisableOnFreezeTime": false,
-    "DisableOnPistolRound": false,
-    "OnlyTeam": 0,
-    "Color": "#8cead2",
-    "Active": true,
-    "Name": "MicroHead",
-    "HudDuration": null,
-    "DescriptionHudDuration": null,
-    "RequiredPermission": "",
-    "MaxPerServer": -1,
-    "MinPlayer": 0,
-    "Rarity": "Common"
-  },
-  {
     "Duration": 3.0,
     "Speed": 750.0,
     "Damage": 75,

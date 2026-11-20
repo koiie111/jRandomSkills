@@ -63,6 +63,11 @@ namespace src.utils
                         foreach (var skillObj in root)
                         {
                             var name = skillObj["Name"]?.ToString();
+                            if (name == "MicroHead")
+                            {
+                                needsRewrite = true;
+                                continue;
+                            }
                             if (string.IsNullOrEmpty(name)) continue;
 
                             var instance = newConfig.FirstOrDefault(x => x.Name == name.ToString());
