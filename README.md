@@ -226,7 +226,7 @@ Buying a server on pukawka? Use my [referral code](https://pukawka.pl/pp,juzlus.
     - Download [CounterStrikeSharp-With-Runtime](https://github.com/roflmuffin/CounterStrikeSharp/releases).
     - Extract it to the `C2Server/game/csgo/` folder.
 4. Install **jRandomSkills**
-    - Download [jRandomSkills](https://github.com/Juzlus/jRandomSkills/releases)
+    - Install the server files from this build and make the compiled Panorama resources available to every client. See the [HUD installation and MySQL setup](./addon/README.md).
 
 ## </> Server Commands
 > [!TIP]
@@ -306,21 +306,13 @@ All skills can be customized in the **`config.cfg`** / **`skillsInfo.json`** fil
                                          // 4 - Damage
                                          // Example: '123' enables: Skill, Round and Entity
         "PerfMode": false,               // Save performance measurements to the logs folder
-        "AlternativeSkillButton": null,  // Possible buttons:
-                                         // null, "Attack", "Jump", "Duck", "Forward", "Back",
-                                         // "Use", "Cancel", "Left", "Right", "Moveleft",
-                                         // "Moveright", "Attack2", "Run", "Reload", "Alt1",
-                                         // "Alt2", "Speed", "Walk", "Zoom", "Weapon1",
-                                         // "Weapon2", "Bullrush", "Grenade1", "Grenade2",
-                                         // "Attack3", "Scoreboard", "Inspect"
+        "HudMySqlConnectionString": null, // Optional shared MySQL connection for onboarding acknowledgements
         "SkillTimeBeforeStart": 7.0,     // How many seconds before freeze time ends should skills
                                          // drawing be completed? (freezetime - SkillTimeBeforeStart)
         "SkillHudDuration": -1.0,       // How long should the HUD be visible for?
         "SkillDescriptionDuration": 7.0, // How long should the skill description be visible for?
         "DisplayAlwaysDescription":false,// Always display skill description (SkillDescriptionDuration = 9999)
         "DisableSpectateHUD": false,     // Disable HTML HUD when spectating
-        "HideHudForOtherPlugins": true,  // Automatically hides HUD when another plugin uses it
-        "EnableFlashingHtmlHudFix": false,// Enable FlashingHtmlHudFix
         "TraceRayBeam": false,           // Enable trail visibility for 'Long Knife', 'Long Zeus'
         "DisableHUDOnDeathPermission": "@jRandomSkills/death",  // Disable the HUD after death for players with this permission
         "DisableSkillsOnRoundEnd": false,// Disable all skills at the end of the round (when the summary is visible)
@@ -348,12 +340,6 @@ All skills can be customized in the **`config.cfg`** / **`skillsInfo.json`** fil
             "LanguageInfos": [...]       // Setting to change ISO languages to translations
         },
         
-        "HtmlHudCustomisation": {        // Settings for changing colours and font sizes
-                                         // xxxl: 64px, xxl: 40px, xl: 32px
-                                         // l: 24px, ml: 20px, m: 18px
-            ...                          // sm: 16px, s: 12px, xs: 8px
-            "WSADMenuVisibleItems": 3    // Number of visible rows
-        }
         ...
     },
 ```

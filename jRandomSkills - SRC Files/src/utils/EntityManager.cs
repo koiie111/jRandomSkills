@@ -251,6 +251,24 @@ namespace src.utils
             return CreateTrackedDynamicProp(ownerKey, "prop_dynamic_override");
         }
 
+        internal static void MakeNonSolid(CDynamicProp prop)
+        {
+            var collision = prop.Collision;
+            if (collision == null) return;
+
+            collision.SolidType = SolidType_t.SOLID_NONE;
+            collision.SolidFlags = 12;
+
+            var attribute = collision.CollisionAttribute;
+            if (attribute == null) return;
+
+            attribute.CollisionGroup = (byte)CollisionGroup.COLLISION_GROUP_NEVER;
+            attribute.CollisionFunctionMask = 0;
+            attribute.InteractsAs = 0;
+            attribute.InteractsWith = 0;
+            attribute.InteractsExclude = 0;
+        }
+
         public static CChicken? CreateTrackedChicken(uint ownerKey)
         {
             try

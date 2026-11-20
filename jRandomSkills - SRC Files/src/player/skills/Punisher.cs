@@ -88,7 +88,7 @@ namespace src.player.skills
 
                 var puncherEvent = PlayerManager.GetPlayerFromEvent(puncher);
                 if (puncherEvent != null && puncherEvent.IsValid)
-                    puncherEvent.PrintToChat($" {ChatColors.Green}{puncherEvent.GetTranslation("punisher_released_info", (int)MathF.Round(banked))}");
+                    puncherEvent.Notify($" {ChatColors.Green}{puncherEvent.GetTranslation("punisher_released_info", (int)MathF.Round(banked))}");
             }
 
             if (!storedDamage.ContainsKey(victimIndex)) return;

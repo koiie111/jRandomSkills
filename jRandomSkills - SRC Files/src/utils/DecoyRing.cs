@@ -1,6 +1,5 @@
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Modules.Entities.Constants;
 using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Modules.Utils;
 using src.player;
@@ -135,7 +134,7 @@ namespace src.utils
                 if (node != null)
                     node.Flags = (uint)(node.Flags & ~(1 << 2));
 
-                MakeNonSolid(prop);
+                EntityManager.MakeNonSolid(prop);
 
                 prop.SetModel(discModel);
                 prop.Teleport(pos, new QAngle(0, 0, 0));
@@ -153,24 +152,6 @@ namespace src.utils
 
                 Utilities.SetStateChanged(prop, "CBaseEntity", "m_CBodyComponent");
             });
-        }
-
-        private static void MakeNonSolid(CDynamicProp prop)
-        {
-            var collision = prop.Collision;
-            if (collision == null) return;
-
-            collision.SolidType = SolidType_t.SOLID_NONE;
-            collision.SolidFlags = 12;
-
-            var attribute = collision.CollisionAttribute;
-            if (attribute == null) return;
-
-            attribute.CollisionGroup = (byte)CollisionGroup.COLLISION_GROUP_NEVER;
-            attribute.CollisionFunctionMask = 0;
-            attribute.InteractsAs = 0;
-            attribute.InteractsWith = 0;
-            attribute.InteractsExclude = 0;
         }
 
         private static void CollectRing(Vector center, float radius, int segments, List<(Vector From, Vector To)> output)

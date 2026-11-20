@@ -9,7 +9,6 @@ using src.utils;
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.Json;
-using WASDSharedAPI;
 using static CounterStrikeSharp.API.Core.Listeners;
 
 namespace src
@@ -23,7 +22,6 @@ namespace src
         public Random Random => Random.Shared;
         public CCSGameRules? GameRules { get; set; }
         private ConcurrentBag<string> ManifestResources { get; set; } = ["models/sprays/spray_plane.vmdl"];
-        public IWasdMenuManager? MenuManager;
         // Skills that were enabled at least once this round; used to reset only those on round change (not all 124).
         public static readonly ConcurrentDictionary<string, byte> ActiveSkillsThisRound = new();
         public static readonly ConcurrentDictionary<string, byte> SkillsUsedThisMap = new();
@@ -37,15 +35,14 @@ namespace src
         {
             Instance = this;
 
-            SkillBindHelp.Load();
             Config.LoadConfig();
             SkillsInfo.LoadSkillsInfo();
             Localization.Load();
             Debug.Load();
             PlayerOnTick.Load();
+            Hud.Load(this);
             Event.Load();
             Command.Load();
-            WASDMenuAPI.WASDMenuAPI.LoadPlugin(Instance, hotReload);
             LoadAllSkills();
             Event.RegisterConnectedPlayers();
 
@@ -71,6 +68,7 @@ namespace src
             src.player.skills.Adrenaline.NewRound();
             src.player.skills.HomingNades.RestoreFuses();
             src.player.skills.SkillPackPlayers.ClearRound();
+            Hud.Unload();
             Event.Unload();
             Debug.Unload();
             PerfLog.Unload();
@@ -119,7 +117,7 @@ namespace src
                 return SkillUtils.TryClaimCurse(curser.Key(), victim.Key(), true);
 
             var curserEvent = PlayerManager.GetPlayerFromEvent(curser);
-            curserEvent?.PrintToChat($" {ChatColors.Red}{curserEvent.GetTranslation("curse_limit_info", victim.PlayerName)}");
+            curserEvent?.Notify($" {ChatColors.Red}{curserEvent.GetTranslation("curse_limit_info", victim.PlayerName)}");
             return false;
         }
 
@@ -168,9 +166,6 @@ namespace src
 
                 return type.GetMethod(key.Method, BindingFlags.Static | BindingFlags.Public);
             });
-
-            if (methodName == "EnableSkill" && param?.FirstOrDefault() is CCSPlayerController hintPlayer)
-                SkillBindHelp.TryPrint(hintPlayer, skill);
 
             if (method == null) return null;
 
@@ -276,22 +271,13 @@ namespace src
             Console.ForegroundColor = (ConsoleColor)CS2ConsoleColors.LightBlue;
             Console.Write(Config.LoadedConfig.SkillHudDuration == -1 ? "infinity" : Config.LoadedConfig.SkillHudDuration);
 
-            Console.ForegroundColor = (ConsoleColor)CS2ConsoleColors.Cyan;
-            Console.Write(", SkillButton: ");
-            Console.ForegroundColor = (ConsoleColor)CS2ConsoleColors.LightBlue;
-            Console.Write(Config.LoadedConfig.AlternativeSkillButton ?? "(NULL)");
-
-            Console.ForegroundColor = (ConsoleColor)CS2ConsoleColors.Cyan;
-            Console.Write(", HtmlHudFix: ");
-            Console.ForegroundColor = (ConsoleColor)CS2ConsoleColors.LightBlue;
-            Console.WriteLine(Config.LoadedConfig.EnableFlashingHtmlHudFix);
+            Console.WriteLine();
 
             // Dependences
             Console.ForegroundColor = (ConsoleColor)CS2ConsoleColors.Cyan;
             Console.WriteLine($"\nDependences:");
             var files = new Dictionary<string, string> {
                 { "Newtonsoft Json", "./Newtonsoft.Json.dll" },
-                { "WASDMenuAPI", "./WASDMenuAPI.dll" },
                 { "MaxMind", "./MaxMind.Db.dll" },
                 { "GeoLite2", "./packages/GeoLite2-Country.mmdb" },
                 { "jRandomSkills gamedata", "./../../gamedata/jRandomSkills.gamedata.json" }
@@ -380,6 +366,7 @@ namespace src
             {
                 if (skill == value) return;
                 skill = value;
+                HudChoice = null;
                 Event.InvalidateActiveSkills();
             }
         }
@@ -398,25 +385,13 @@ namespace src
         }
         public DateTime SkillHudExpired { get; set; }
         public DateTime SkillDescriptionHudExpired { get; set; }
-        public DateTime HudSuppressedUntil { get; set; }
         public string? PrintHTML { get; set; }
         public int HideHUD { get; set; }
+        internal Hud.SkillChoice? HudChoice { get; set; }
         public bool SkillUsed = false;
-        internal (string Name, string Color, string Html) HudSkillLabel;
         public bool? HudOnDeathBlocked { get; set; }
-        public HudCacheEntry? HudCache { get; set; }
     }
 
-    public sealed class HudCacheEntry
-    {
-        public uint PlayerKey;
-        public object? Config;
-        public string? Header;
-        public string? Center;
-        public string? Extra;
-        public bool IsDescription;
-        public string? Content;
-    }
 
     public class jSkill_SkillInfo(Skills skill, string color, bool display)
     {
@@ -452,6 +427,7 @@ namespace src
 
         public static void Invalidate()
         {
+            menu.Menu.InvalidateCatalogs();
             _bySkill = null;
             _snapshot = null;
         }

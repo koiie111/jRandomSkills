@@ -72,7 +72,7 @@ public sealed class HotPotato : ISkill
             mark.Timer = jRandomSkills.Instance.AddTimer(duration, () => Expire(mark), TimerFlags.STOP_ON_MAPCHANGE);
         }
 
-        victim.PrintToChat(victim.GetTranslationWithoutIlliterate("hotpotato_mark"));
+        victim.Notify(victim.GetTranslationWithoutIlliterate("hotpotato_mark"));
     }
 
     private static void Expire(Mark mark)

@@ -53,7 +53,7 @@ namespace src.player.skills
                 SkillUtils.CreateMenu(player, menuItems);
             }
             else
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
         }
 
         public static void DisableSkill(CCSPlayerController player)
@@ -95,34 +95,35 @@ namespace src.player.skills
 
             if (playerInfo.SkillUsed)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
                 return;
             }
 
             if (commands.Length == 0 || !uint.TryParse(commands[0], out uint enemyIndex))
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
                 return;
             }
 
             var enemy = PlayerManager.GetController(enemyIndex);
             if (enemy == null || !enemy.IsValid)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
                 return;
             }
 
             bountyTargets[enemy.Key()] = 0;
             ownerToTarget[player.Key()] = enemy.Key();
             playerInfo.SkillUsed = true;
+            playerInfo.HudChoice = new(Name: enemy.PlayerName);
 
             int reward = SkillsInfo.GetValue<int>(skillName, "reward");
 
-            playerEvent.PrintToChat($" {ChatColors.Green}{playerEvent.GetTranslation("bounty_player_info", enemy.PlayerName, reward)}");
+            playerEvent.Notify($" {ChatColors.Green}{playerEvent.GetTranslation("bounty_player_info", enemy.PlayerName, reward)}");
 
             var enemyEvent = PlayerManager.GetPlayerFromEvent(enemy);
             if (enemyEvent != null && enemyEvent.IsValid)
-                enemyEvent.PrintToChat($" {ChatColors.Red}{enemyEvent.GetTranslation("bounty_enemy_info", reward)}");
+                enemyEvent.Notify($" {ChatColors.Red}{enemyEvent.GetTranslation("bounty_enemy_info", reward)}");
         }
 
         public static void PlayerDeath(EventPlayerDeath @event)
@@ -148,7 +149,7 @@ namespace src.player.skills
 
             var killerEvent = PlayerManager.GetPlayerFromEvent(killer);
             if (killerEvent != null && killerEvent.IsValid)
-                killerEvent.PrintToChat($" {ChatColors.Green}{killerEvent.GetTranslation("bounty_claimed_info", victim.PlayerName, reward)}");
+                killerEvent.Notify($" {ChatColors.Green}{killerEvent.GetTranslation("bounty_claimed_info", victim.PlayerName, reward)}");
         }
 
         private static int GetMaxMoney() => SkillUtils.CvarValue("mp_maxmoney", 16000);

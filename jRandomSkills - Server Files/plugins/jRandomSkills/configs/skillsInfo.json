@@ -2662,8 +2662,9 @@
     "Rarity": "Common"
   },
   {
-    "Duration": 3.0,
-    "Speed": 750.0,
+    "Duration": 8.0,
+    "DefaultsVersion": 1,
+    "Speed": 550.0,
     "Damage": 75,
     "NeedsTeammates": false,
     "DisableOnFreezeTime": true,

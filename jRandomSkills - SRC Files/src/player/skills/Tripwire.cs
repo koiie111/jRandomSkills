@@ -120,14 +120,14 @@ namespace src.player.skills
 
             if (!TryPlaceWire(player))
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("tripwire_no_wall_info"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("tripwire_no_wall_info"));
                 return;
             }
 
             skillInfo.CanUse = false;
             skillInfo.Cooldown = DateTime.Now;
 
-            playerEvent.PrintToChat($" {ChatColors.Green}" + playerEvent.GetTranslation("tripwire_placed_info"));
+            playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("tripwire_placed_info"));
         }
 
         private static void UpdateHUD(CCSPlayerController player, PlayerSkillInfo skillInfo)
@@ -256,7 +256,7 @@ namespace src.player.skills
                     if (ownerEvent != null && ownerEvent.IsValid)
                     {
                         SkillUtils.EmitSoundToPlayer(ownerEvent, triggerSound, SkillsInfo.GetValue<float>(skillName, "soundVolume"));
-                        ownerEvent.PrintToChat($" {ChatColors.Red}" + ownerEvent.GetTranslation("tripwire_triggered_info", enemyEvent.PlayerName));
+                        ownerEvent.Notify($" {ChatColors.Red}" + ownerEvent.GetTranslation("tripwire_triggered_info", enemyEvent.PlayerName));
                     }
                 }
             }

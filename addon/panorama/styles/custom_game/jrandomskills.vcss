@@ -1,0 +1,81 @@
+.jrs-screen { width: 100%; height: 100%; }
+.jrs-layer { z-index: 100; }
+.jrs-hidden { visibility: collapse; }
+.jrs-visible, .jrs-shown { visibility: visible; }
+.jrs-hud { width: 608px; align: center bottom; margin-bottom: 100px; flow-children: down; }
+.jrs-card, .jrs-toast {
+    width: 100%;
+    background-color: #101922f5;
+    border: 1px solid #425761;
+    border-radius: 10px;
+}
+.jrs-card { flow-children: right; padding: 12px 15px; border-left: 4px solid #70e4b5; }
+.jrs-card.jrs-negative { border-left: 4px solid #ff9494; }
+.jrs-card.jrs-mixed { border-left: 4px solid #ffd590; }
+.jrs-toast { padding: 8px 14px; margin-bottom: 6px; }
+.jrs-icon {
+    width: 52px; height: 52px; vertical-align: center; margin-right: 13px;
+    background-color: #213d37; border-radius: 10px;
+}
+.jrs-icon-glyph { align: center center; font-size: 36px; font-weight: bold; color: #92ffcb; }
+.jrs-negative .jrs-icon { background-color: #492f36; }
+.jrs-mixed .jrs-icon { background-color: #443926; }
+.jrs-negative .jrs-icon-glyph, .jrs-negative .jrs-kind { color: #ffa9a9; }
+.jrs-mixed .jrs-icon-glyph, .jrs-mixed .jrs-kind { color: #ffd590; }
+.jrs-copy { width: 505px; flow-children: down; }
+.jrs-card-heading { width: 100%; flow-children: right; }
+.jrs-name {
+    max-width: 358px; color: #ffffff; font-size: 25px; font-weight: bold;
+    text-overflow: shrink min( 17px ) ellipsis;
+}
+.jrs-kind {
+    vertical-align: center; color: #92ffcb; font-size: 13px; margin-left: 9px;
+    background-color: #23333e; padding: 3px 6px; border-radius: 4px;
+}
+.jrs-observed { color: #afc4d2; font-size: 15px; }
+.jrs-description, .jrs-action, .jrs-status {
+    width: 100%; color: #dce7ef; font-size: 18px; white-space: normal;
+}
+.jrs-action { color: #f3f7fb; font-size: 17px; margin-top: 3px; }
+.jrs-status { color: #ffd590; font-size: 16px; }
+.jrs-bind { flow-children: right; margin-top: 6px; }
+.jrs-bind-caption { vertical-align: center; color: #b7c9d5; font-size: 15px; margin-right: 6px; }
+.jrs-bind-command {
+    vertical-align: center; color: #acf3ed; font-size: 15px; font-weight: bold;
+    background-color: #20333e; padding: 2px 6px; border-radius: 4px;
+}
+.jrs-menu {
+    width: 615px;
+    align: center center;
+    flow-children: down;
+    background-color: #131e29fa;
+    border: 1px solid #526873;
+    border-top: 4px solid #70e4b5;
+    border-radius: 12px;
+    padding: 20px;
+}
+.jrs-menu-header { width: 100%; flow-children: right; }
+.jrs-menu-title { width: 527px; color: #f4fbff; font-size: 25px; font-weight: bold; white-space: normal; }
+.jrs-body { width: 100%; color: #e0ebf2; font-size: 18px; white-space: normal; margin-top: 6px; }
+.jrs-option, .jrs-square { background-color: #273e4b; border: 1px solid #547681; border-radius: 6px; }
+.jrs-option { width: 100%; min-height: 37px; margin-top: 6px; padding: 6px 10px; flow-children: down; }
+.jrs-row-title { width: 100%; color: #f3faff; font-size: 19px; font-weight: bold; white-space: normal; }
+.jrs-row-description { width: 100%; color: #bfd0dc; font-size: 17px; white-space: normal; margin-top: 2px; }
+.jrs-option.jrs-readonly, .jrs-option.jrs-readonly:hover { background-color: #1d2c39; border-color: #364d5d; }
+.jrs-square { width: 34px; height: 34px; }
+.jrs-square Label { align: center center; color: #f3faff; font-size: 22px; }
+.jrs-option:hover, .jrs-square:hover { background-color: #345665; }
+.jrs-pages { align: center top; flow-children: right; margin-top: 10px; }
+.jrs-page { width: 85px; text-align: center; vertical-align: center; color: #e0ebf2; font-size: 18px; }
+.jrs-menu.jrs-intro { width: 658px; padding: 23px; }
+.jrs-intro .jrs-menu-title { width: 566px; font-size: 34px; }
+.jrs-brand { color: #80ebc0; font-size: 20px; font-weight: bold; margin-bottom: 9px; }
+.jrs-intro .jrs-body { color: #e4edf5; font-size: 21px; margin-top: 10px; }
+.jrs-intro-bind {
+    width: 100%; flow-children: down; margin-top: 15px; padding: 10px 13px;
+    background-color: #20333e; border-radius: 6px;
+}
+.jrs-intro-command { color: #b2f7ed; font-size: 23px; font-weight: bold; }
+.jrs-intro-note { width: 100%; color: #bdd1dc; font-size: 17px; margin-top: 5px; white-space: normal; }
+.jrs-intro .jrs-option { margin-top: 15px; background-color: #285146; }
+.jrs-intro .jrs-option:hover { background-color: #346655; }

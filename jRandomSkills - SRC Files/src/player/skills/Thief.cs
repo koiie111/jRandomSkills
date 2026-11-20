@@ -64,21 +64,21 @@ namespace src.player.skills
 
             if (commands == null || commands.Length == 0)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
             string enemyId = commands[0];
             if (!uint.TryParse(enemyId, out uint enemyIndex))
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
             var enemy = PlayerManager.GetController(enemyIndex);
             if (enemy == null || !enemy.IsValid)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
@@ -113,7 +113,7 @@ namespace src.player.skills
                     border: !PlayerManager.GetTickPlayers().Any(p => p != null && p.Team == player.Team && p != player) ? "tb" : "t");
             }
             else
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
         }
 
         public static void DisableSkill(CCSPlayerController player)
@@ -158,7 +158,7 @@ namespace src.player.skills
                     if (!player.IsBot)
                         Instance.SkillAction(skillName.ToString(), "EnableSkill", [p]);
 
-                    playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("thief_incorrect_skill", e.PlayerName));
+                    playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("thief_incorrect_skill", e.PlayerName));
                 }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
                 return;
             }
@@ -180,11 +180,12 @@ namespace src.player.skills
 
                 pInfo.Skill = enemySkill;
                 pInfo.SpecialSkill = skillName;
+                pInfo.HudChoice = new(Name: e.PlayerName);
 
                 SkillUtils.CloseMenu(p);
                 Instance.SkillAction(enemySkill.ToString(), "EnableSkill", [p]);
 
-                playerEvent.PrintToChat($" {ChatColors.Green}" + playerEvent.GetTranslation("thief_player_info", e.PlayerName));
+                playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("thief_player_info", e.PlayerName));
 
                 if (SkillsInfo.GetValue<bool>(enemySkill, "disableOnFreezeTime") && SkillUtils.IsFreezeTime())
                 {
@@ -218,7 +219,7 @@ namespace src.player.skills
 
                 eInfo.SpecialSkill = enemySkill;
                 eInfo.Skill = Skills.None;
-                enemyEvent.PrintToChat($" {ChatColors.Red}" + enemyEvent.GetTranslation("thief_enemy_info"));
+                enemyEvent.Notify($" {ChatColors.Red}" + enemyEvent.GetTranslation("thief_enemy_info"));
             }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
         }
 

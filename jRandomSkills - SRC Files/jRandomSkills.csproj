@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
@@ -22,12 +22,12 @@
         <PackageReference Include="CounterStrikeSharp.API" Version="1.0.375" />
         <PackageReference Include="MaxMind.Db" Version="5.1.0">
         </PackageReference>
-        <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+        <PackageReference Include="PanoramaManager" Version="0.4.4" />
+    <PackageReference Include="MySqlConnector" Version="2.6.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     </ItemGroup>
 
-	<!-- Relative path to the WASDMenuAPI source code -->
     <ItemGroup>
-        <ProjectReference Include="..\WASDMenuAPI - SRC Files\WASDMenuAPI.csproj" />
     </ItemGroup>
 
     <ItemGroup>
@@ -70,9 +70,9 @@
         <ItemGroup>
             <CompiledDLL Include="$(SourceDLL)\jRandomSkills.dll" />
             <CompiledDLL Include="$(SourceDLL)\jRandomSkills.pdb" />
-            <CompiledDLL Include="$(SourceDLL)\WASDMenuAPI.dll" />
-            <CompiledDLL Include="$(SourceDLL)\WASDMenuAPI.pdb" />
 	        <CompiledDLL Include="$(SourceDLL)\MaxMind.Db.dll" />
+            <CompiledDLL Include="$(SourceDLL)\PanoramaManager.dll" />
+            <CompiledDLL Include="$(SourceDLL)\MySqlConnector.dll" />
 	        <CompiledDLL Include="$(SourceDLL)\Newtonsoft.Json.dll" />
         </ItemGroup>
         <MakeDir Directories="$(ServerDLL)" Condition="!Exists('$(ServerDLL)')" />

@@ -16,7 +16,7 @@ namespace src.command
     {
         private static bool gamePaused = false;
         private static Config.SettingsModel config = Config.LoadedConfig;
-        private static readonly ConcurrentDictionary<string, CommandInfo.CommandCallback> oldCommands = [];
+        private static readonly ConcurrentDictionary<string, CommandInfo.CommandCallback> oldCommands = new(StringComparer.OrdinalIgnoreCase);
         private static readonly ConcurrentDictionary<uint, int> nextSkill = [];
         private static readonly object setLock = new();
 
@@ -36,10 +36,14 @@ namespace src.command
 
                 var commands = new Dictionary<IEnumerable<string>, (string description, CommandInfo.CommandCallback handler)>
                 {
-                    { SplitCommands("bind"), ("Show skill bind help", (player, _) => SkillBindHelp.Print(player, true)) },
+                    { SplitCommands("summ"), ("Open the last skills summary", (player, _) => Hud.ShowSummary(player)) },
+                    { SplitCommands("skillvote"), ("Open an active vote", (player, _) => VoteSystem.ShowVote(player)) },
+                    { SplitCommands("bind"), ("Show skill bind help", (player, _) => Hud.ShowWelcome(player)) },
                     { SplitCommands(config.NormalCommands.SetSkillCommand.Alias), ("Set skill", Command_SetSkill) },
-                    { SplitCommands(config.NormalCommands.SkillsListCommand.Alias), ("Delete all records", Command_SkillsListMenu) },
-                    { SplitCommands(config.NormalCommands.UseSkillCommand.Alias), ("Use/Type skill", Command_UseTypeSkill) },
+                    { SplitCommands("skills"), ("Show skills", (player, _) =>
+                        { if (player != null) Menu.DisplaySkillsList(player); }) },
+                    { SplitCommands(config.NormalCommands.SkillsListCommand.Alias), ("Show skills", Command_SkillsListMenu) },
+                    { SplitCommands("useskill, " + config.NormalCommands.UseSkillCommand.Alias), ("Use/Type skill", Command_UseTypeSkill) },
                     { SplitCommands(config.NormalCommands.ConsoleCommand.Alias), ("Console command", Command_CustomCommand) },
                     { SplitCommands(config.NormalCommands.HealCommand.Alias), ("Heal", Command_Heal) },
                     { SplitCommands(config.NormalCommands.HealthCommand.Alias), ("Set heath", Command_Health) },
@@ -165,8 +169,6 @@ namespace src.command
 
                 SkillUtils.PrintToChat(player, $"{player.GetTranslationWithoutIlliterate("done_setskill")}: {ChatColors.LightRed}{player.GetSkillName(skill.Skill)} {ChatColors.Lime}{player.GetTranslationWithoutIlliterate("for_setskill")} {ChatColors.LightRed}\u202A{targetPlayer.PlayerName}\u202C");
 
-                if (skill.Display)
-                    SkillUtils.PrintToChat(player, $"{ChatColors.DarkRed}{player.GetSkillName(skill.Skill)}{ChatColors.Lime}: {player.GetSkillDescription(skill.Skill)}", border: "b");
             }
             else
             {
@@ -206,7 +208,7 @@ namespace src.command
                     Server.PrintToConsole("Invalid entity index!");
                     return;
                 }
-                player.PrintToChat("Invalid entity index!");
+                player.Notify("Invalid entity index!");
                 return;
             }
 
@@ -215,41 +217,39 @@ namespace src.command
             if (player == null)
                 Server.PrintToConsole(entity != null ? $"Entity {entity?.DesignerName} exists!" : "Entity does not exist!");
             else
-                player.PrintToChat(entity != null ? $"Entity {entity?.DesignerName} exists!" : "Entity does not exist!");
+                player.Notify(entity != null ? $"Entity {entity?.DesignerName} exists!" : "Entity does not exist!");
         }
 
         [CommandHelper(minArgs: 1, whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
         private static void Command_ChangeMap(CCSPlayerController? player, CommandInfo command)
         {
             Debug.WriteToDebug($"Player {player?.PlayerName} used the css_map {command.ArgString} command.");
-            if (player != null && player.IsValid)
-                if (!string.IsNullOrEmpty(config.VotingCommands.ChangeMapCommand.Permissions) && !AdminManager.PlayerHasPermissions(player, config.VotingCommands.ChangeMapCommand.Permissions))
-                {
-                    if (!config.VotingCommands.ChangeMapCommand.EnableVoting) return;
-                    player.Vote(VoteType.ChangeMap, command.ArgString);
-                    return;
-                }
-            ChangeMap(command);
-        }
-
-        private static void ChangeMap(CommandInfo command)
-        {
             string map = command.GetArg(1).ToLowerInvariant();
-
-            if (string.IsNullOrEmpty(map))
+            bool workshop = ulong.TryParse(map, System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out ulong workshopId);
+            if (workshop)
+                map = workshopId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            else if (map.Length == 0 || !map.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-' or '/' or '.')
+                || !Server.IsMapValid(map))
             {
-                command.ReplyToCommand($" {ChatColors.Red}{command.CallingPlayer?.GetTranslationWithoutIlliterate("invalid_map")}");
+                command.ReplyToCommand(player?.GetTranslationWithoutIlliterate("invalid_map")
+                    ?? Localization.GetTranslationWithoutIlliterate("invalid_map"));
                 return;
             }
 
-            Localization.PrintTranslationToChatAll($" {ChatColors.Yellow}{{0}} ({ChatColors.Green}{map}{ChatColors.Yellow})...", ["loading_map"], false);
+            if (player is { IsValid: true } && !string.IsNullOrEmpty(config.VotingCommands.ChangeMapCommand.Permissions)
+                && !AdminManager.PlayerHasPermissions(player, config.VotingCommands.ChangeMapCommand.Permissions))
+            {
+                if (config.VotingCommands.ChangeMapCommand.EnableVoting) player.Vote(VoteType.ChangeMap, config.VotingCommands.ChangeMapCommand, () => ChangeMap(map, workshop), map);
+                return;
+            }
+            ChangeMap(map, workshop);
+        }
 
-            if (uint.TryParse(map, out _))
-                Server.ExecuteCommand($"host_workshop_map {map}");
-            else if (!Server.IsMapValid(map))
-                command.ReplyToCommand($" {ChatColors.Red}{command.CallingPlayer?.GetTranslationWithoutIlliterate("invalid_map")}");
-            else
-                Server.ExecuteCommand($"changelevel {map}");
+        private static void ChangeMap(string map, bool workshop)
+        {
+            Localization.PrintTranslationToChatAll($" {ChatColors.Yellow}{{0}} ({ChatColors.Green}{map}{ChatColors.Yellow})...", ["loading_map"], false);
+            Server.ExecuteCommand(workshop ? $"host_workshop_map {map}" : $"changelevel {map}");
         }
 
         [CommandHelper(minArgs: 0, whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
@@ -260,17 +260,15 @@ namespace src.command
                 if (!string.IsNullOrEmpty(config.VotingCommands.StartGameCommand.Permissions) && !AdminManager.PlayerHasPermissions(player, config.VotingCommands.StartGameCommand.Permissions))
                 {
                     if (!config.VotingCommands.StartGameCommand.EnableVoting) return;
-                    player.Vote(VoteType.StartGame);
+                    player.Vote(VoteType.StartGame, config.VotingCommands.StartGameCommand, () => StartGame(false));
                     return;
                 }
-            StartGame(command);
+            StartGame(command.GetArg(1) == "sv");
         }
 
-        private static void StartGame(CommandInfo command)
+        private static void StartGame(bool cheats)
         {
-            int cheats = command.GetArg(1) == "sv" ? 1 : 0;
-
-            foreach (string consoleCommand in cheats == 1
+            foreach (string consoleCommand in cheats
                                 ? Config.LoadedConfig.VotingCommands.StartGameCommand.SVStartParams.Split(";")
                                 : Config.LoadedConfig.VotingCommands.StartGameCommand.StartParams.Split(";"))
                 Server.ExecuteCommand(consoleCommand);
@@ -295,7 +293,7 @@ namespace src.command
                 if (!string.IsNullOrEmpty(config.VotingCommands.SwapCommand.Permissions) && !AdminManager.PlayerHasPermissions(player, config.VotingCommands.SwapCommand.Permissions))
                 {
                     if (!config.VotingCommands.SwapCommand.EnableVoting) return;
-                    player.Vote(VoteType.SwapTeam);
+                    player.Vote(VoteType.SwapTeam, config.VotingCommands.SwapCommand, Swap);
                     return;
                 }
             Swap();
@@ -317,7 +315,7 @@ namespace src.command
                 if (!string.IsNullOrEmpty(config.VotingCommands.ShuffleCommand.Permissions) && !AdminManager.PlayerHasPermissions(player, config.VotingCommands.ShuffleCommand.Permissions))
                 {
                     if (!config.VotingCommands.ShuffleCommand.EnableVoting) return;
-                    player.Vote(VoteType.ShuffleTeam);
+                    player.Vote(VoteType.ShuffleTeam, config.VotingCommands.ShuffleCommand, Shuffle);
                     return;
                 }
             Shuffle();
@@ -344,7 +342,7 @@ namespace src.command
                 if (!string.IsNullOrEmpty(config.VotingCommands.PauseCommand.Permissions) && !AdminManager.PlayerHasPermissions(player, config.VotingCommands.PauseCommand.Permissions))
                 {
                     if (!config.VotingCommands.PauseCommand.EnableVoting) return;
-                    player.Vote(VoteType.PauseGame);
+                    player.Vote(VoteType.PauseGame, config.VotingCommands.PauseCommand, Pause);
                     return;
                 }
             Pause();
@@ -364,7 +362,7 @@ namespace src.command
             if (player == null || !player.IsValid || player.PlayerPawn.Value == null || !player.PlayerPawn.Value.IsValid || player.LifeState != (byte)LifeState_t.LIFE_ALIVE) return;
             if (!string.IsNullOrEmpty(config.NormalCommands.HealCommand.Permissions) && !AdminManager.PlayerHasPermissions(player, config.NormalCommands.HealCommand.Permissions)) return;
             SkillUtils.AddHealth(player.PlayerPawn.Value, 100);
-            player.PrintToChat($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("healed")}");
+            player.Notify($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("healed")}");
         }
 
         [CommandHelper(minArgs: 1, whoCanExecute: CommandUsage.CLIENT_ONLY)]
@@ -378,7 +376,7 @@ namespace src.command
             if (int.TryParse(command.GetArg(1), out int health))
                 SkillUtils.AddHealth(pawn, health - pawn.Health, health);
 
-            player.PrintToChat($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("set_health")}");
+            player.Notify($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("set_health")}");
         }
 
         [CommandHelper(minArgs: 0, whoCanExecute: CommandUsage.CLIENT_ONLY)]
@@ -400,7 +398,7 @@ namespace src.command
                 time = 40;
 
             bomb.C4Blow = Server.CurrentTime + time;
-            player.PrintToChat($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("planted_bomb_spawned", [time])}");
+            player.Notify($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("planted_bomb_spawned", [time])}");
         }
 
         [CommandHelper(minArgs: 0, whoCanExecute: CommandUsage.CLIENT_ONLY)]
@@ -419,7 +417,7 @@ namespace src.command
             var bot = Utilities.GetPlayers().Where(p => p != null && p.IsValid && p.IsBot && p.PawnIsAlive && (botSlot == -1 || p.Slot == botSlot)).FirstOrDefault();
             if (bot == null || bot.PlayerPawn.Value == null || !bot.PlayerPawn.Value.IsValid)
             {
-                player.PrintToChat($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("bot_placed_not_found")}");
+                player.Notify($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("bot_placed_not_found")}");
                 return;
             }
 
@@ -430,7 +428,7 @@ namespace src.command
                 || (int.TryParse(command.GetArg(2), out int godmodeInt) && godmodeInt == 1))
                 bot.PlayerPawn.Value.TakesDamage = false;
 
-            player.PrintToChat($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("bot_placed")}");
+            player.Notify($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("bot_placed")}");
         }
 
         [CommandHelper(minArgs: 0, whoCanExecute: CommandUsage.CLIENT_ONLY)]
@@ -447,34 +445,27 @@ namespace src.command
             bool isDisplayHUD = playerInfo.HideHUD < tickCount;
 
             playerInfo.HideHUD = isDisplayHUD ? int.MaxValue : int.MinValue;
-            SkillUtils.SetMenuPaused(player, isDisplayHUD);
-            player.PrintToChat($" {(!isDisplayHUD ? ChatColors.Green : ChatColors.Red)}{player.GetTranslationWithoutIlliterate(!isDisplayHUD ? "hud_on" : "hud_off")}");
+            if (isDisplayHUD) Hud.DismissMenu(player);
+            player.Notify($" {(!isDisplayHUD ? ChatColors.Green : ChatColors.Red)}{player.GetTranslationWithoutIlliterate(!isDisplayHUD ? "hud_on" : "hud_off")}");
         }
 
         [CommandHelper(minArgs: 2, whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
         private static void Command_SetScore(CCSPlayerController? player, CommandInfo command)
         {
             Debug.WriteToDebug($"Player {player?.PlayerName} used the css_setscore {command.ArgString} command.");
-            if (player != null && player.IsValid)
-                if (!string.IsNullOrEmpty(config.VotingCommands.SetScoreCommand.Permissions) && !AdminManager.PlayerHasPermissions(player, config.VotingCommands.SetScoreCommand.Permissions))
-                {
-                    if (!config.VotingCommands.SetScoreCommand.EnableVoting) return;
-                    player.Vote(VoteType.SetScore, command.ArgString);
-                    return;
-                }
-            SetScore(player, command);
-        }
-
-        private static void SetScore(CCSPlayerController? player, CommandInfo command)
-        {
-            if (!int.TryParse(command.GetArg(1), out int ctScore) || !int.TryParse(command.GetArg(2), out int tScore))
+            if (!short.TryParse(command.GetArg(1), out short ctScore) || !short.TryParse(command.GetArg(2), out short tScore))
             {
-                if (player != null && player.IsValid)
-                    SkillUtils.PrintToChat(player, player.GetTranslationWithoutIlliterate("correct_form_setscore"));
+                command.ReplyToCommand(player?.GetTranslationWithoutIlliterate("correct_form_setscore")
+                    ?? Localization.GetTranslationWithoutIlliterate("correct_form_setscore"));
                 return;
             }
-
-            SkillUtils.SetTeamScores((short)ctScore, (short)tScore, RoundEndReason.RoundDraw);
+            if (player is { IsValid: true } && !string.IsNullOrEmpty(config.VotingCommands.SetScoreCommand.Permissions)
+                && !AdminManager.PlayerHasPermissions(player, config.VotingCommands.SetScoreCommand.Permissions))
+            {
+                if (config.VotingCommands.SetScoreCommand.EnableVoting) player.Vote(VoteType.SetScore, config.VotingCommands.SetScoreCommand, () => SkillUtils.SetTeamScores(ctScore, tScore, RoundEndReason.RoundDraw), $"{ctScore} {tScore}");
+                return;
+            }
+            SkillUtils.SetTeamScores(ctScore, tScore, RoundEndReason.RoundDraw);
         }
 
         [CommandHelper(minArgs: 1, whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
@@ -557,8 +548,6 @@ namespace src.command
 
                 SkillUtils.PrintToChat(player, $"{player.GetTranslationWithoutIlliterate("done_setskill")}: {ChatColors.LightRed}{player.GetSkillName(skill.Skill)} {ChatColors.Lime}{player.GetTranslationWithoutIlliterate("for_setskill")} {ChatColors.LightRed}\u202A{targetPlayer.PlayerName}\u202C");
 
-                if (skill.Display)
-                    SkillUtils.PrintToChat(player, $"{ChatColors.DarkRed}{player.GetSkillName(skill.Skill)}{ChatColors.Lime}: {player.GetSkillDescription(skill.Skill)}", border: "b");
             }
             else
             {
@@ -611,7 +600,7 @@ namespace src.command
                 Event.InvalidateFreezeDisabledCache();
 
                 if (player != null && player.IsValid)
-                    player.PrintToChat($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("reload")}");
+                    player.Notify($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("reload")}");
                 else
                     Server.PrintToConsole($" {ChatColors.Green}{Localization.GetTranslationWithoutIlliterate("reload")}");
 
@@ -676,7 +665,7 @@ namespace src.command
             }
 
             var skill = skillsList[nextIndex];
-            player.PrintToChat(nextIndex.ToString());
+            player.Notify(nextIndex.ToString());
 
             var skillPlayer = PlayerManager.GetPlayer(targetPlayer);
             if (skillPlayer == null) return;

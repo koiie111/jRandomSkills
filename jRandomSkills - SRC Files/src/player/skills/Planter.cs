@@ -63,7 +63,7 @@ namespace src.player.skills
                 });
 
             foreach (var p in PlayerManager.GetTickPlayers().Where(p => p.IsValid))
-                p.PrintToCenterAlert(p.GetTranslation("bombplanted", SkillsInfo.GetValue<int>(skillName, "extraC4BlowTime")));
+                p.Notify(p.GetTranslation("bombplanted", SkillsInfo.GetValue<int>(skillName, "extraC4BlowTime")));
         }
 
         public static void NewRound()
@@ -116,7 +116,6 @@ namespace src.player.skills
                 {
                     float remaining = plantTime + 3f - currentTime;
                     playerInfo.PrintHTML = $"{player.GetTranslation("planter_planting", $"<font color='#00FF00'>{Math.Max(0, remaining):0.0}s</font>")}";
-                    player.PrintToCenter(" ");
                 }
             }
         }
