@@ -256,7 +256,9 @@ namespace src.utils
             return tickPlayerHandles.Contains(original.Handle) ? original : player;
         }
 
-        public static CCSPlayerController? GetControllerByPawn(nint pawnHandle, bool preferFirst = false)
+        public static CCSPlayerController? GetControllerByPawn(nint pawnHandle) => GetControllerByPawn(pawnHandle, preferFirst: false);
+
+        internal static CCSPlayerController? GetControllerByPawn(nint pawnHandle, bool preferFirst)
         {
             if (pawnHandle == nint.Zero) return null;
 
