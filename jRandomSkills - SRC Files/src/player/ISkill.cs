@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API.Core;
+using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.UserMessages;
@@ -217,4 +217,14 @@ public enum Skills
     Adrenaline,
     GlassCannon,
     Partner,
+    BigHead,
+    MicroHead,
+    GuidedBullet,
+    TurtleShield,
+    FalseFootsteps,
+    HotPotato,
+    LastCartridge,
+    FieldDressing,
+    BoobyTrappedGun,
+    AirPause,
 }

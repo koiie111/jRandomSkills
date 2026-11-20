@@ -66,6 +66,7 @@ namespace src.player
             PerfLog.Info("===== MAP END (clean map change) =====");
             Debug.WriteToDebug("===== MAP END (clean map change) =====");
             BotManager.Stop();
+            skills.SkillPackPlayers.ClearRound();
             PlayerManager.SetServerActive(false);
         }
 

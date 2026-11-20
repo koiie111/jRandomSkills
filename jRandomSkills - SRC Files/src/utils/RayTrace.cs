@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 using jRandomSkills.src.utils;
@@ -38,7 +38,7 @@ namespace src.utils
             }
         }
 
-        public static CustomTraceResult? TraceShape(CCSPlayerController player, Vector startPos, Vector endPos, ulong? mask = null, ulong? contents = null)
+        public static CustomTraceResult? TraceShape(CCSPlayerController player, Vector startPos, Vector endPos, ulong? mask = null, ulong? contents = null, bool allowDebugBeam = true)
         {
             if (player == null || !player.IsValid) return null;
 
@@ -70,7 +70,7 @@ namespace src.utils
             }
             contents ??= 0;
 
-            bool drawBeam = Config.LoadedConfig.TraceRayBeam;
+            bool drawBeam = allowDebugBeam && Config.LoadedConfig.TraceRayBeam;
 
             Vector mins = new(-0.5f, -0.5f, -0.5f);
             Vector maxs = new(0.5f, 0.5f, 0.5f);
