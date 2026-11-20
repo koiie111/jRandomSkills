@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API.Modules.Utils;
+using CounterStrikeSharp.API.Modules.Utils;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -75,8 +75,19 @@ namespace src.utils
 
                             present.Add(name);
 
-                            if (skillObj is JObject current && HasMissingKeys(current, instance))
-                                needsRewrite = true;
+                            if (skillObj is JObject current)
+                            {
+                                if (HasMissingKeys(current, instance)) needsRewrite = true;
+
+                                // Raise the previous shipped limit while preserving other configured durations.
+                                if (name == nameof(Skills.GuidedBullet) && current["Duration"] is JValue duration
+                                    && duration.Type is JTokenType.Integer or JTokenType.Float
+                                    && duration.Value<float>() == 3f)
+                                {
+                                    current["Duration"] = player.skills.GuidedBullet.DefaultDuration;
+                                    needsRewrite = true;
+                                }
+                            }
 
                             try
                             {

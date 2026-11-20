@@ -10,8 +10,11 @@ public sealed class GuidedBullet : ISkill
 {
     private const int MaxFlights = 2;
     private const int StepTicks = 4;
+    internal const float DefaultDuration = 8f;
+    private const float MaxDuration = 12f;
+    private const float ArmSeconds = 5f;
     private const string CameraModel = "models/sprays/spray_plane.vmdl";
-    private sealed class Shot(CCSPlayerController player, CCSPlayerPawn pawn, CCSWeaponBase gun)
+    private sealed class Shot(CCSPlayerController player, CCSPlayerPawn pawn, CCSWeaponBase gun, int armedTick, float duration)
     {
         public CCSPlayerController Player { get; } = player;
         public CCSPlayerPawn Pawn { get; } = pawn;
@@ -20,6 +23,9 @@ public sealed class GuidedBullet : ISkill
         public uint GunHandle { get; } = gun.EntityHandle.Raw;
         public int SecondaryTick { get; } = gun.NextSecondaryAttackTick;
         public int PrimaryTick { get; } = gun.NextPrimaryAttackTick;
+        public int ArmEnd { get; } = armedTick + Ticks(ArmSeconds);
+        public int FireLockUntil { get; } = armedTick + Ticks(ArmSeconds + duration + 1);
+        public int DurationTicks { get; } = Ticks(duration);
         public bool ReleasedTrigger { get; set; } = (player.Buttons & PlayerButtons.Attack) == 0;
         public CDynamicProp? Camera { get; set; }
         public uint CameraHandle { get; set; }
@@ -58,9 +64,11 @@ public sealed class GuidedBullet : ISkill
             SkillPackPlayers.Gun(pawn) is not { Clip1: > 0 } gun ||
             gun.NextPrimaryAttackTick > Server.TickCount || gun.InReload ||
             (gun.DesignerName is "weapon_glock" or "weapon_famas" && gun.As<CCSWeaponBaseGun>().BurstShotsRemaining > 0)) return;
-        shots.Add(key, new Shot(player, pawn, gun));
-        SetPrimary(gun, int.MaxValue);
-        SetSecondary(gun, int.MaxValue);
+        var duration = Math.Clamp(SkillsInfo.GetValue<float>(Skills.GuidedBullet, "Duration"), 0.25f, MaxDuration);
+        var shot = new Shot(player, pawn, gun, Server.TickCount, duration);
+        shots.Add(key, shot);
+        SetPrimary(gun, shot.FireLockUntil);
+        SetSecondary(gun, shot.FireLockUntil);
         player.Notify(player.GetTranslationWithoutIlliterate("guidedbullet_armed"));
     }
 
@@ -76,8 +84,8 @@ public sealed class GuidedBullet : ISkill
             if (shot.Camera != null && tick < shot.NextStep && tick < shot.EndTick) continue;
             if (SkillPackPlayers.LivePawn(shot.Player)?.EntityHandle.Raw != shot.PawnHandle ||
                 shot.Pawn.WeaponServices?.ActiveWeapon.Raw != shot.GunHandle ||
-                shot.Gun.InReload || shot.Gun.NextPrimaryAttackTick != int.MaxValue ||
-                shot.Gun.NextSecondaryAttackTick != int.MaxValue)
+                shot.Gun.InReload || shot.Gun.NextPrimaryAttackTick != shot.FireLockUntil ||
+                shot.Gun.NextSecondaryAttackTick != shot.FireLockUntil)
             {
                 Stop(key);
                 continue;
@@ -85,7 +93,14 @@ public sealed class GuidedBullet : ISkill
 
             if (shot.Camera == null)
             {
-                bool pressed = (shot.Player.Buttons & PlayerButtons.Attack) != 0;
+                if (tick >= shot.ArmEnd)
+                {
+                    Stop(key);
+                    continue;
+                }
+
+                bool pressed = (shot.Player.Buttons & PlayerButtons.Attack) != 0
+                    || ((shot.Pawn.MovementServices?.QueuedButtonChangeMask ?? 0UL) & (ulong)PlayerButtons.Attack) != 0;
                 if (!pressed) shot.ReleasedTrigger = true;
                 else if (shot.ReleasedTrigger)
                 {
@@ -132,8 +147,7 @@ public sealed class GuidedBullet : ISkill
         shot.Tracer = tracer;
         shot.OriginalView = services.ViewEntity.Raw;
         shot.Position = start;
-        float duration = Math.Clamp(SkillsInfo.GetValue<float>(Skills.GuidedBullet, "Duration"), 0.25f, 5);
-        shot.EndTick = tick + (int)MathF.Ceiling(duration / Server.TickInterval);
+        shot.EndTick = tick + shot.DurationTicks;
         shot.NextStep = tick + StepTicks;
         shot.Speed = Math.Clamp(SkillsInfo.GetValue<float>(Skills.GuidedBullet, "Speed"), 100, 1800);
         shot.Damage = Math.Clamp(SkillsInfo.GetValue<int>(Skills.GuidedBullet, "Damage"), 1, 1000);
@@ -223,9 +237,9 @@ public sealed class GuidedBullet : ISkill
         if (!shots.Remove(key, out var shot)) return;
         if (shot.Gun.IsValid && shot.Gun.EntityHandle.Raw == shot.GunHandle)
         {
-            if (shot.Gun.NextPrimaryAttackTick == int.MaxValue)
+            if (shot.Gun.NextPrimaryAttackTick == shot.FireLockUntil)
                 SetPrimary(shot.Gun, Math.Max(shot.PrimaryTick, Server.TickCount + 1));
-            if (shot.Gun.NextSecondaryAttackTick == int.MaxValue)
+            if (shot.Gun.NextSecondaryAttackTick == shot.FireLockUntil)
                 SetSecondary(shot.Gun, Math.Max(shot.SecondaryTick, Server.TickCount + 1));
         }
         if (shot.Camera == null) return;
@@ -244,6 +258,8 @@ public sealed class GuidedBullet : ISkill
         if (shot.Camera.IsValid) EntityManager.DestroyEntity(shot.Camera.Index);
         if (shot.Tracer is { IsValid: true } tracer) EntityManager.DestroyEntity(tracer.Index);
     }
+
+    private static int Ticks(float seconds) => (int)MathF.Ceiling(seconds / Server.TickInterval);
 
     private static void SetPrimary(CCSWeaponBase gun, int tick)
     {
@@ -267,7 +283,7 @@ public sealed class GuidedBullet : ISkill
     public sealed class SkillConfig() : SkillsInfo.DefaultSkillInfo(Skills.GuidedBullet, color: "#ffd65e",
         disableOnFreezeTime: true, maxPerServer: 2, rarity: src.utils.Rarity.Rare)
     {
-        public float Duration { get; set; } = 3;
+        public float Duration { get; set; } = DefaultDuration;
         public float Speed { get; set; } = 750;
         public int Damage { get; set; } = 75;
     }

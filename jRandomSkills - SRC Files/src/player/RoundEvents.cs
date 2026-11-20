@@ -18,6 +18,8 @@ namespace src.player
 {
     public static partial class Event
     {
+        private static bool summaryRoundStarted;
+
         private static bool IsVip(CCSPlayerController? player)
         {
             if (player == null || !player.IsValid || player.IsBot) return false;
@@ -98,6 +100,7 @@ namespace src.player
             lock (setLock)
             {
                 bool isWarmup = IsWarmupPeriod();
+                summaryRoundStarted = !isWarmup;
                 isTransmitRegistered = false;
                 setSkillRetries = 0;
                 setSkillRanThisRound = false;
@@ -265,6 +268,10 @@ namespace src.player
 
         private static HookResult RoundEnd(EventRoundEnd @event, GameEventInfo info)
         {
+            if (summaryRoundStarted && Config.LoadedConfig.SummaryAfterTheRound)
+                Hud.RecordRoundSummary();
+            summaryRoundStarted = false;
+
             Illiterate.Disable();
             foreach (var handler in roundEndCallbacks.Active())
             {
@@ -279,33 +286,6 @@ namespace src.player
 
             lock (setLock)
             {
-                Instance.AddTimer(.5f, () =>
-                {
-                    if (!Config.LoadedConfig.SummaryAfterTheRound) return;
-
-                    var _players = Utilities.GetPlayers().Where(p => p.IsValid && p.Team is CsTeam.CounterTerrorist or CsTeam.Terrorist).OrderBy(p => p.Team).ToList();
-
-                    foreach (var player in Utilities.GetPlayers().Where(p => p.IsValid))
-                    {
-                        string skillsText = "";
-                        foreach (var _player in _players)
-                        {
-                            var _playerSkill = PlayerManager.GetPlayer(_player);
-                            if (_playerSkill == null) continue;
-
-                            var skillInfo = SkillData.Skills.FirstOrDefault(s => s.Skill == _playerSkill.Skill);
-                            var specialSkillInfo = SkillData.Skills.FirstOrDefault(s => s.Skill == _playerSkill.SpecialSkill);
-                            if (skillInfo == null) continue;
-
-                            skillsText += $" {ChatColors.DarkRed}\u202A{_player.PlayerName}\u202C{ChatColors.Lime}: {(_playerSkill.SpecialSkill == Skills.None || specialSkillInfo == null ? player.GetSkillName(skillInfo.Skill, _playerSkill.SkillChance) : $"{player.GetSkillName(specialSkillInfo.Skill)} -> {player.GetSkillName(skillInfo.Skill, _playerSkill.SkillChance)}")}\n";
-                        }
-
-                        if (string.IsNullOrEmpty(skillsText)) continue;
-
-                        Hud.SetSummary(player, skillsText);
-                    }
-                }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
-
                 // Before the optional disable below, so the "don't repeat the current skill"
                 // exclusion still sees this round's skills.
                 Instance.AddTimer(.6f, PrecomputeNextRoundSkills, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);

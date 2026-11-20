@@ -2662,7 +2662,7 @@
     "Rarity": "Common"
   },
   {
-    "Duration": 3.0,
+    "Duration": 8.0,
     "Speed": 750.0,
     "Damage": 75,
     "NeedsTeammates": false,

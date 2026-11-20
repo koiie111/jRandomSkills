@@ -16,7 +16,7 @@ namespace src.command
     {
         private static bool gamePaused = false;
         private static Config.SettingsModel config = Config.LoadedConfig;
-        private static readonly ConcurrentDictionary<string, CommandInfo.CommandCallback> oldCommands = [];
+        private static readonly ConcurrentDictionary<string, CommandInfo.CommandCallback> oldCommands = new(StringComparer.OrdinalIgnoreCase);
         private static readonly ConcurrentDictionary<uint, int> nextSkill = [];
         private static readonly object setLock = new();
 
@@ -36,14 +36,14 @@ namespace src.command
 
                 var commands = new Dictionary<IEnumerable<string>, (string description, CommandInfo.CommandCallback handler)>
                 {
-                    { SplitCommands("skillsummary"), ("Open the last skills summary", (player, _) => Hud.ShowSummary(player)) },
+                    { SplitCommands("summ"), ("Open the last skills summary", (player, _) => Hud.ShowSummary(player)) },
                     { SplitCommands("skillvote"), ("Open an active vote", (player, _) => VoteSystem.ShowVote(player)) },
                     { SplitCommands("bind"), ("Show skill bind help", (player, _) => Hud.ShowWelcome(player)) },
                     { SplitCommands(config.NormalCommands.SetSkillCommand.Alias), ("Set skill", Command_SetSkill) },
                     { SplitCommands("skills"), ("Show skills", (player, _) =>
                         { if (player != null) Menu.DisplaySkillsList(player); }) },
                     { SplitCommands(config.NormalCommands.SkillsListCommand.Alias), ("Show skills", Command_SkillsListMenu) },
-                    { SplitCommands(config.NormalCommands.UseSkillCommand.Alias + ", useskill"), ("Use/Type skill", Command_UseTypeSkill) },
+                    { SplitCommands("useskill, " + config.NormalCommands.UseSkillCommand.Alias), ("Use/Type skill", Command_UseTypeSkill) },
                     { SplitCommands(config.NormalCommands.ConsoleCommand.Alias), ("Console command", Command_CustomCommand) },
                     { SplitCommands(config.NormalCommands.HealCommand.Alias), ("Heal", Command_Heal) },
                     { SplitCommands(config.NormalCommands.HealthCommand.Alias), ("Set heath", Command_Health) },

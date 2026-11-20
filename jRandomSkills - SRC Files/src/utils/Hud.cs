@@ -18,6 +18,7 @@ internal static partial class Hud
 {
     internal sealed record Option(string Label, Action<CCSPlayerController>? Select, string? Description = null);
     internal readonly record struct SkillChoice(string? Name = null, string? Translation = null, Skills? Skill = null);
+    private sealed record RoundSkill(string PlayerName, Skills Skill, Skills SpecialSkill, float? Chance);
     private sealed record MenuView(string Title, string Body, Option[] Options, Skills? Picker, bool Welcome = false)
     {
         public int Page { get; set; }
@@ -40,7 +41,6 @@ internal static partial class Hud
         public long LastStatusSample { get; set; }
         public string RawStatus { get; set; } = "";
         public string Status { get; set; } = "";
-        public string Summary { get; set; } = "";
         public (Skills Skill, Skills Special, float? Chance, string Language, bool Observer, bool Drawing, SkillChoice? Choice)? Card { get; set; }
     }
 
@@ -49,6 +49,7 @@ internal static partial class Hud
     private const string Resource = "panorama/layout/custom_game/jrandomskills_";
     private static readonly Dictionary<int, Viewer> Viewers = [];
     private static readonly HashSet<Skills> BoundSkills = [];
+    private static RoundSkill[] previousRound = [];
     private static PanelHandle? passive;
     private static PanelHandle? modal;
     private static bool loaded;
@@ -82,6 +83,7 @@ internal static partial class Hud
                 passive?.Close(player);
             }
             Viewers.Clear();
+            previousRound = [];
         });
         plugin.RegisterEventHandler<EventPlayerDeath>((ev, _) =>
         {
@@ -97,6 +99,7 @@ internal static partial class Hud
         passive = null;
         modal = null;
         Viewers.Clear();
+        previousRound = [];
         BoundSkills.Clear();
     }
 
@@ -531,22 +534,39 @@ internal static partial class Hud
         }
     }
 
-    public static void SetSummary(CCSPlayerController player, string summary)
+    public static void RecordRoundSummary()
     {
-        if (!Valid(player)) return;
-        For(player).Summary = Plain(summary);
-        player.Notify(T(player, "jrs_summary_notice"));
+        var players = Utilities.GetPlayers();
+        previousRound = players
+            .Where(player => player.IsValid && !player.IsHLTV && player.Team is CsTeam.CounterTerrorist or CsTeam.Terrorist)
+            .OrderBy(player => player.Team)
+            .Select(player =>
+            {
+                var info = PlayerManager.GetPlayer(player);
+                return new RoundSkill(player.PlayerName, info?.Skill ?? Skills.None, info?.SpecialSkill ?? Skills.None, info?.SkillChance);
+            })
+            .ToArray();
+
+        if (previousRound.Length == 0) return;
+        foreach (var player in players.Where(Valid))
+            player.Notify(T(player, "jrs_summary_notice"));
     }
 
     public static void ShowSummary(CCSPlayerController? player)
     {
         if (player == null || !Valid(player)) return;
-        var lines = For(player).Summary.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        if (lines.Length == 0)
+        if (previousRound.Length == 0)
         {
             player.Notify(T(player, "jrs_summary_empty"));
             return;
         }
-        OpenMenu(player, T(player, "summary"), lines.Select(line => new Option(line, null)).ToArray());
+        var rows = previousRound.Select(entry =>
+        {
+            string skill = player.GetSkillName(entry.Skill, entry.Chance);
+            if (entry.SpecialSkill != Skills.None)
+                skill = $"{player.GetSkillName(entry.SpecialSkill)} → {skill}";
+            return new Option(Plain($"{entry.PlayerName}: {skill}"), null);
+        }).ToArray();
+        OpenMenu(player, T(player, "jrs_summary_title"), rows);
     }
 }
