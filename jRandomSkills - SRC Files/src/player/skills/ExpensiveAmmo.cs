@@ -80,7 +80,7 @@ namespace src.player.skills
 
             if (playerInfo.SkillUsed)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
                 return;
             }
 
@@ -88,7 +88,7 @@ namespace src.player.skills
 
             if (!uint.TryParse(enemyId, out uint enemyIndex))
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
@@ -96,7 +96,7 @@ namespace src.player.skills
 
             if (enemy == null || !enemy.IsValid || enemy.PlayerPawn.Value == null || !enemy.PlayerPawn.Value.IsValid)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
@@ -107,8 +107,8 @@ namespace src.player.skills
             var enemyEvent = PlayerManager.GetPlayerFromEvent(enemy);
             if (enemyEvent == null || !enemyEvent.IsValid) return;
 
-            playerEvent.PrintToChat($" {ChatColors.Green}" + playerEvent.GetTranslation("expensiveammo_player_info", enemy.PlayerName));
-            enemyEvent.PrintToChat($" {ChatColors.Red}" + enemyEvent.GetTranslation("expensiveammo_enemy_info", SkillsInfo.GetValue<int>(skillName, "moneyPerShot")));
+            playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("expensiveammo_player_info", enemy.PlayerName));
+            enemyEvent.Notify($" {ChatColors.Red}" + enemyEvent.GetTranslation("expensiveammo_enemy_info", SkillsInfo.GetValue<int>(skillName, "moneyPerShot")));
         }
 
         public static void EnableSkill(CCSPlayerController player)
@@ -127,7 +127,7 @@ namespace src.player.skills
                 SkillUtils.CreateMenu(player, menuItems);
             }
             else
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
         }
 
         public static void DisableSkill(CCSPlayerController player)
@@ -140,7 +140,7 @@ namespace src.player.skills
 
                 var target = PlayerManager.GetPlayerFromEvent(PlayerManager.GetController(targetIndex));
                 if (target != null && target.IsValid && target.PawnIsAlive)
-                    target.PrintToChat($" {ChatColors.Green}" + target.GetTranslation("expensiveammo_disable_info"));
+                    target.Notify($" {ChatColors.Green}" + target.GetTranslation("expensiveammo_disable_info"));
             }
 
             SkillUtils.CloseMenu(player);

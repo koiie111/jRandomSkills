@@ -86,7 +86,7 @@ namespace src.player.skills
             if (!CanCopy(player, victimSkill, out string? blockReason))
             {
                 if (blockReason != null && playerEvent != null && playerEvent.IsValid)
-                    playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation(blockReason, victimName));
+                    playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation(blockReason, victimName));
 
                 return;
             }
@@ -126,7 +126,7 @@ namespace src.player.skills
             }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
 
             if (playerEvent != null && playerEvent.IsValid)
-                playerEvent.PrintToChat($" {ChatColors.Green}" + playerEvent.GetTranslation("chameleon_copied_info", player.GetSkillName(victimSkill)));
+                playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("chameleon_copied_info", player.GetSkillName(victimSkill)));
         }
 
         private static bool CanCopy(CCSPlayerController player, Skills victimSkill, out string? blockReason)

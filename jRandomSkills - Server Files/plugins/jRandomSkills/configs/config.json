@@ -1,4 +1,4 @@
-﻿{
+{
   "ConfigName": "Default",
   "GameMode": 3,
   "YourSkillChatInfo": true,
@@ -10,7 +10,7 @@
   "EnableFullForceUpdate": false,
   "DebugMode": 0,
   "PerfMode": false,
-  "AlternativeSkillButton": null,
+  "HudMySqlConnectionString": null,
   "SkillTimeBeforeStart": 7.0,
   "SkillHudDuration": -1.0,
   "SkillDescriptionDuration": 7.0,

@@ -301,11 +301,7 @@ namespace src.player
 
                         if (string.IsNullOrEmpty(skillsText)) continue;
 
-                        SkillUtils.PrintToChat(player, string.Empty, title: player.GetTranslationWithoutIlliterate("summary"), border: "t");
-                        foreach (string text in skillsText.Split("\n"))
-                            if (!string.IsNullOrEmpty(text))
-                                SkillUtils.PrintToChat(player, text, title: player.GetTranslationWithoutIlliterate("teammate_skills"), border: "");
-                        SkillUtils.PrintToChat(player, string.Empty, border: "b");
+                        Hud.SetSummary(player, skillsText);
                     }
                 }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
 
@@ -665,7 +661,7 @@ namespace src.player
                             debugSkills = [.. SkillData.Skills];
                         randomSkill = debugSkills[0];
                         debugSkills.RemoveAt(0);
-                        player.PrintToChat($"{SkillData.Skills.Count - debugSkills.Count}/{SkillData.Skills.Count}");
+                        player.Notify($"{SkillData.Skills.Count - debugSkills.Count}/{SkillData.Skills.Count}");
                     }
 
                     Instance?.SkillAction(skillPlayer.Skill.ToString(), "DisableSkill", [player]);
@@ -709,15 +705,6 @@ namespace src.player
                     UpdateSkillHudExpired(skillPlayer, randomSkill.Skill);
                     assigned++;
 
-                    if (randomSkill.Display && !player.IsBot)
-                        Instance?.AddTimer(.6f, () =>
-                        {
-                            var descTarget = PlayerManager.GetController(playerIndex);
-                            if (descTarget == null || !descTarget.IsValid) return;
-
-                            SkillUtils.PrintToChat(descTarget, $"{ChatColors.DarkRed}{descTarget.GetSkillName(randomSkill.Skill)}{ChatColors.Lime}: {descTarget.GetSkillDescription(randomSkill.Skill)}", border: "tb");
-                        }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
-
                     if (Config.LoadedConfig.TeamMateSkillChatInfo && !player.IsBot)
                     {
                         chatTeams ??= validPlayers.Where(p => p.IsValid).ToLookup(p => p.Team, p => p.Key());
@@ -728,7 +715,6 @@ namespace src.player
                             var recipient = PlayerManager.GetController(playerIndex);
                             if (recipient == null || recipient.Team != team) return;
 
-                            string? title = null;
                             foreach (uint key in teammateKeys)
                             {
                                 if (key == playerIndex) continue;
@@ -737,18 +723,11 @@ namespace src.player
                                 var info = PlayerManager.GetPlayerByKey(key);
                                 if (info == null) continue;
 
-                                if (title == null)
-                                {
-                                    title = recipient.GetTranslationWithoutIlliterate("teammate_skills");
-                                    SkillUtils.PrintToChat(recipient, string.Empty, title: title, border: "t");
-                                }
                                 var skill = SkillData.GetInfo(info.Skill);
                                 string name = skill == null ? recipient.GetSkillName(Skills.None) : recipient.GetSkillName(skill.Skill, info.SkillChance);
-                                SkillUtils.PrintToChat(recipient, $" {ChatColors.DarkRed}\u202A{teammate.PlayerName}\u202C{ChatColors.Lime}: {name}", title: title, border: "");
+                                SkillUtils.PrintToChat(recipient, $" {ChatColors.DarkRed}\u202A{teammate.PlayerName}\u202C{ChatColors.Lime}: {name}");
                             }
 
-                            if (title != null && !randomSkill.Display)
-                                SkillUtils.PrintToChat(recipient, string.Empty, title: title, border: "b");
                         }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
                     }
                 }
@@ -860,16 +839,13 @@ namespace src.player
                             debugSkills = [.. SkillData.Skills];
                         randomSkill = debugSkills[0];
                         debugSkills.RemoveAt(0);
-                        player.PrintToChat($"{SkillData.Skills.Count - debugSkills.Count}/{SkillData.Skills.Count}");
+                        player.Notify($"{SkillData.Skills.Count - debugSkills.Count}/{SkillData.Skills.Count}");
                     }
                 }
 
                 Instance?.SkillAction(skillPlayer.Skill.ToString(), "DisableSkill", [player]);
                 skillPlayer.Skill = randomSkill.Skill;
                 skillPlayer.SpecialSkill = Skills.None;
-
-                if (randomSkill.Display && Config.LoadedConfig.YourSkillChatInfo)
-                    SkillUtils.PrintToChat(player, $"{ChatColors.DarkRed}{player.GetSkillName(randomSkill.Skill)}{ChatColors.Lime}: {player.GetSkillDescription(randomSkill.Skill)}", border: "tb");
 
                 if (randomSkill.Skill == Skills.Illiterate)
                     Illiterate.Enable();

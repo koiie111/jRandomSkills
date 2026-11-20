@@ -20,7 +20,7 @@ public sealed class BoobyTrappedGun : ISkill
         uint handle = weapon.EntityHandle.Raw;
         if (!traps.TryAdd(handle, new(key, player.Team, handle))) return;
         spent.Add(key);
-        player.PrintToChat(player.GetTranslationWithoutIlliterate("boobytrappedgun_armed"));
+        player.Notify(player.GetTranslationWithoutIlliterate("boobytrappedgun_armed"));
     }
 
     public static void WeaponPickup(EventItemPickup e)

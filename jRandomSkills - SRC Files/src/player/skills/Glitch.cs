@@ -75,7 +75,7 @@ namespace src.player.skills
 
             if (playerInfo.SkillUsed)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
                 return;
             }
 
@@ -83,7 +83,7 @@ namespace src.player.skills
 
             if (!uint.TryParse(enemyId, out uint enemyIndex))
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
@@ -91,7 +91,7 @@ namespace src.player.skills
 
             if (enemy == null)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
@@ -104,8 +104,8 @@ namespace src.player.skills
             SkillUtils.SetRadarDisabled(enemyEvent, ownerTag, true);
             playerInfo.SkillUsed = true;
 
-            playerEvent.PrintToChat($" {ChatColors.Green}" + playerEvent.GetTranslation("glitch_player_info", enemy.PlayerName));
-            enemyEvent.PrintToChat($" {ChatColors.Red}" + enemyEvent.GetTranslation("glitch_enemy_info"));
+            playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("glitch_player_info", enemy.PlayerName));
+            enemyEvent.Notify($" {ChatColors.Red}" + enemyEvent.GetTranslation("glitch_enemy_info"));
         }
 
         public static void BotTakeover(EventBotTakeover @event)
@@ -137,7 +137,7 @@ namespace src.player.skills
                 SkillUtils.CreateMenu(player, menuItems);
             }
             else
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
         }
 
         public static void DisableSkill(CCSPlayerController player)
@@ -149,7 +149,7 @@ namespace src.player.skills
                 {
                     SkillUtils.SetRadarDisabled(target, ownerTag, false);
                     if (target.PawnIsAlive)
-                        target.PrintToChat($" {ChatColors.Green}" + target.GetTranslation("glitch_disable_info"));
+                        target.Notify($" {ChatColors.Green}" + target.GetTranslation("glitch_disable_info"));
                 }
                 glitchedPlayers.TryRemove(targetIndex, out _);
             }

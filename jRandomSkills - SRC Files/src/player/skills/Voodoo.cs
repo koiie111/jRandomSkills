@@ -54,7 +54,7 @@ namespace src.player.skills
                 SkillUtils.CreateMenu(player, menuItems);
             }
             else
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
         }
 
         public static void DisableSkill(CCSPlayerController player)
@@ -94,27 +94,27 @@ namespace src.player.skills
 
             if (playerInfo.SkillUsed)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
                 return;
             }
 
             if (commands.Length == 0 || !uint.TryParse(commands[0], out uint enemyIndex))
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
                 return;
             }
 
             var enemy = PlayerManager.GetController(enemyIndex);
             if (enemy == null || !enemy.IsValid)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
                 return;
             }
 
             ownerToVictim[player.Key()] = enemy.Key();
             playerInfo.SkillUsed = true;
 
-            playerEvent.PrintToChat($" {ChatColors.Green}{playerEvent.GetTranslation("voodoo_player_info", enemy.PlayerName)}");
+            playerEvent.Notify($" {ChatColors.Green}{playerEvent.GetTranslation("voodoo_player_info", enemy.PlayerName)}");
         }
 
         public static void PlayerHurt(EventPlayerHurt @event)

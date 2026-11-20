@@ -27,21 +27,13 @@ namespace src.player
                 long perfStart = PerfLog.Start();
                 // Shared per-tick controller snapshot: the skill OnTick loop already scans the
                 // player list this frame, so reuse that native scan instead of running a second one.
-                DateTime now = default;
-                int tick = 0;
+                if (Instance.GameRules == null) return;
+                int tick = Server.TickCount;
                 foreach (var player in PlayerManager.GetTickPlayers())
                 {
                     if (player == null || !player.IsValid || player.IsBot) continue;
 
-                    if (now == default)
-                    {
-                        var gameRules = Instance.GameRules;
-                        if (gameRules == null || gameRules.WarmupPeriod || gameRules.GamePhase >= 5) break;
-                        now = DateTime.Now;
-                        tick = Server.TickCount;
-                    }
-
-                    UpdatePlayerHud(player, now, tick);
+                    UpdatePlayerHud(player, tick);
                 }
                 PerfLog.Sample("OnTick(hud)", perfStart);
             });
@@ -87,127 +79,36 @@ namespace src.player
                 Instance.GameRules.GameRestart = Instance.GameRules.RestartRoundTime < Server.CurrentTime;
         }
 
-        private static void UpdatePlayerHud(CCSPlayerController player, DateTime now, int tick)
+        private static void UpdatePlayerHud(CCSPlayerController player, int tick)
         {
-            var skillPlayer = PlayerManager.GetPlayer(PlayerManager.GetPlayerEvent(player) ?? player);
-            if (skillPlayer == null || skillPlayer.HideHUD >= tick) return;
-
-            if (skillPlayer.HudSuppressedUntil > now) return;
-
-            bool alive = player.PawnIsAlive;
-            if (alive && skillPlayer.SkillHudExpired < now && string.IsNullOrEmpty(skillPlayer.PrintHTML)) return;
-
-            if (SkillUtils.HasMenu(player))
+            var rules = Instance.GameRules!;
+            bool safe = player.PawnIsAlive && (rules.WarmupPeriod || rules.FreezePeriod);
+            var controller = PlayerManager.GetPlayerEvent(player) ?? player;
+            var info = PlayerManager.GetPlayer(controller);
+            if (info == null || info.HideHUD >= tick || rules.WarmupPeriod || rules.GamePhase >= 5)
             {
-                SkillUtils.SetMenuPaused(player, false);
+                Hud.Pulse(player, null, null, safe);
                 return;
             }
 
-            string infoLine = string.Empty;
-            string skillLine = string.Empty;
-            string remainingLine = string.Empty;
-
-            bool showDescriptionHUD = skillPlayer.SkillDescriptionHudExpired >= now || Config.LoadedConfig.DisplayAlwaysDescription;
-            bool isDescription = true;
-
-            var skills = SkillData.GetSnapshot();
-
-            if (skills.Length == 0)
+            if (player.PawnIsAlive)
             {
-                infoLine = player.GetTranslationWithoutIlliterate("your_skill");
-                skillLine = player.GetTranslationWithoutIlliterate("none");
-            }
-            else if (skillPlayer.IsDrawing && alive)
-            {
-                var randomSkill = skills[Random.Shared.Next(skills.Length)];
-
-                infoLine = player.GetTranslationWithoutIlliterate("drawing_skill");
-                skillLine = $"<font color='{randomSkill.Color}'>{player.GetSkillName(randomSkill.Skill)}</font>";
-            }
-            else
-            {
-                if (alive)
-                {
-                    var skillInfo = SkillData.GetInfo(skillPlayer.Skill);
-
-                    if (skillInfo != null)
-                    {
-                        infoLine = player.GetTranslationWithoutIlliterate("your_skill");
-                        string name = player.GetSkillName(skillInfo.Skill, skillPlayer.SkillChance);
-                        ref var label = ref skillPlayer.HudSkillLabel;
-                        if (label.Name != name || label.Color != skillInfo.Color)
-                            label = (name, skillInfo.Color, $"<font color='{skillInfo.Color}'>{name}</font>");
-                        skillLine = label.Html;
-
-                        if (skillInfo.Skill != Skills.None)
-                        {
-                            remainingLine = string.IsNullOrEmpty(skillPlayer.PrintHTML)
-                                ? (showDescriptionHUD ? player.GetSkillDescription(skillInfo.Skill, skillPlayer.SkillChance) : "")
-                                : skillPlayer.PrintHTML;
-
-                            isDescription = string.IsNullOrEmpty(skillPlayer.PrintHTML);
-                        }
-                    }
-                }
-                else
-                {
-                    if (player.Team is CsTeam.Spectator or CsTeam.None && Config.LoadedConfig.DisableSpectateHUD)
-                        return;
-
-                    skillPlayer.HudOnDeathBlocked ??= AdminManager.PlayerHasPermissions(player, Config.LoadedConfig.DisableHUDOnDeathPermission);
-                    if (skillPlayer.HudOnDeathBlocked == true) return;
-
-                    var pawn = player.Pawn.Value;
-                    if (pawn?.ObserverServices == null) return;
-
-                    var observerTarget = pawn.ObserverServices.ObserverTarget?.Value;
-                    if (observerTarget == null || !observerTarget.IsValid) return;
-
-                    var observedPlayer = PlayerManager.GetControllerByPawn(observerTarget.Handle);
-                    if (observedPlayer == null) return;
-
-                    var observedEvent = PlayerManager.GetPlayerEvent(observedPlayer);
-                    if (observedEvent == null || !observedEvent.IsValid) return;
-
-                    var observedSkill = PlayerManager.GetPlayer(observedEvent);
-                    if (observedSkill == null) return;
-
-                    var observedSkillInfo = SkillData.GetInfo(observedSkill.Skill);
-                    var observedSpecialInfo = observedSkill.SpecialSkill != Skills.None
-                        ? SkillData.GetInfo(observedSkill.SpecialSkill)
-                        : null;
-
-                    string primaryName = player.GetSkillName(observedSkill.Skill, observedSkill.SkillChance);
-                    string primaryColor = observedSkillInfo?.Color ?? SkillsInfo.GetValue<string>(Skills.None, "color");
-                    string pName = System.Net.WebUtility.HtmlEncode(observedSkill.PlayerName);
-
-                    if (pName.Length > 18)
-                        pName = $"{pName[..17]}...";
-
-                    var observerSkill = player.GetTranslationWithoutIlliterate("observer_skill");
-                    infoLine = string.IsNullOrEmpty(observerSkill) ? pName : $"{observerSkill} {pName}";
-
-                    if (observedSkill.SpecialSkill == Skills.None || observedSpecialInfo == null)
-                        skillLine = $"<font color='{primaryColor}'>{primaryName}</font>";
-                    else
-                    {
-                        string specialName = player.GetSkillName(observedSpecialInfo.Skill);
-                        skillLine = $"<font color='{observedSpecialInfo.Color}'>{specialName}({primaryName})</font>";
-                    }
-
-                    if (observedSkill.Skill != Skills.None && !string.IsNullOrEmpty(observedSkill.PrintHTML))
-                    {
-                        remainingLine = observedSkill.PrintHTML;
-                        isDescription = false;
-                    }
-                    else if (showDescriptionHUD)
-                        remainingLine = player.GetSkillDescription(observedSkill.Skill, observedSkill.SkillChance);
-                }
+                Hud.Pulse(player, info, null, safe);
+                return;
             }
 
-            if (string.IsNullOrEmpty(skillLine)) return;
+            if (player.Team is CsTeam.Spectator or CsTeam.None && Config.LoadedConfig.DisableSpectateHUD)
+            {
+                Hud.Pulse(player, null, null, false);
+                return;
+            }
 
-            Event.UpdateSkillHUD(player, skillPlayer, infoLine, skillLine, remainingLine, isDescription);
+            info.HudOnDeathBlocked ??= AdminManager.PlayerHasPermissions(player, Config.LoadedConfig.DisableHUDOnDeathPermission);
+            var target = player.Pawn.Value?.ObserverServices?.ObserverTarget?.Value;
+            var observed = !info.HudOnDeathBlocked.Value && target is { IsValid: true }
+                ? PlayerManager.GetControllerByPawn(target.Handle) : null;
+            Hud.Pulse(player, observed == null ? null : PlayerManager.GetPlayer(PlayerManager.GetPlayerEvent(observed) ?? observed),
+                observed?.PlayerName, false);
         }
     }
 }

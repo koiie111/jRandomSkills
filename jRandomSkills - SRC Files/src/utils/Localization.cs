@@ -88,12 +88,9 @@ namespace src.utils
             if (translations != null)
             {
                 string redColor = ChatColors.Red.ToString();
-                string? altButton = Config.LoadedConfig.AlternativeSkillButton;
                 foreach (var tkey in translations.Keys.ToList())
                 {
                     var val = translations[tkey].Replace("CHATCOLORS.RED", redColor);
-                    if (!string.IsNullOrEmpty(altButton))
-                        val = val.Replace("css_useSkill", $"css_useSkill/{altButton}");
                     translations[tkey] = val;
                 }
                 _translations.AddOrUpdate(code, translations, (k, v) => translations);
@@ -196,7 +193,7 @@ namespace src.utils
                 string langCode = GetLangCode(player);
                 if (key == null)
                 {
-                    player.PrintToChat(message);
+                    player.Notify(message);
                     return;
                 }
 
@@ -207,7 +204,7 @@ namespace src.utils
                     string translation = GetTranslation(key[i], langCode, null, useIlliterate, currentArgs);
                     translations.Add(translation);
                 }
-                player.PrintToChat(string.Format(message, [.. translations]));
+                player.Notify(string.Format(message, [.. translations]));
             }
         }
 
@@ -264,7 +261,7 @@ namespace src.utils
 
         private static bool _geoLiteBroken = false;
 
-        private static string GetLangCode(CCSPlayerController? player)
+        internal static string GetLangCode(CCSPlayerController? player)
         {
             if (player == null || !player.IsValid || player.IsBot) return defaultLangCode;
 

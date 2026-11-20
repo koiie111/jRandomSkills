@@ -61,7 +61,7 @@ public sealed class GuidedBullet : ISkill
         shots.Add(key, new Shot(player, pawn, gun));
         SetPrimary(gun, int.MaxValue);
         SetSecondary(gun, int.MaxValue);
-        player.PrintToChat(player.GetTranslationWithoutIlliterate("guidedbullet_armed"));
+        player.Notify(player.GetTranslationWithoutIlliterate("guidedbullet_armed"));
     }
 
     public static void OnTick()
@@ -91,7 +91,7 @@ public sealed class GuidedBullet : ISkill
                 {
                     shot.ReleasedTrigger = false;
                     if (flying == MaxFlights)
-                        shot.Player.PrintToChat(shot.Player.GetTranslationWithoutIlliterate("guidedbullet_busy"));
+                        shot.Player.Notify(shot.Player.GetTranslationWithoutIlliterate("guidedbullet_busy"));
                     else if (!Launch(key, shot, tick))
                         Stop(key);
                 }

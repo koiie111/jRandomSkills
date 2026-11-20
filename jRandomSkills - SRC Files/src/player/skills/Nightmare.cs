@@ -82,7 +82,7 @@ namespace src.player.skills
                 SkillUtils.CreateMenu(player, menuItems);
             }
             else
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
         }
 
         public static void TypeSkill(CCSPlayerController player, string[] commands)
@@ -96,20 +96,20 @@ namespace src.player.skills
 
             if (playerInfo.SkillUsed)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
                 return;
             }
 
             if (!uint.TryParse(commands[0], out uint enemyIndex))
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
             var enemy = PlayerManager.GetController(enemyIndex);
             if (enemy == null || !enemy.IsValid || enemy.Team == player.Team)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
@@ -117,7 +117,7 @@ namespace src.player.skills
             {
                 if (!ApplyVolume(player.Key(), enemy))
                 {
-                    playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                    playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                     return;
                 }
 
@@ -127,11 +127,11 @@ namespace src.player.skills
             playerInfo.SkillUsed = true;
 
             var enemyEvent = PlayerManager.GetPlayerFromEvent(enemy);
-            playerEvent.PrintToChat($" {ChatColors.Green}" + playerEvent.GetTranslation("nightmare_player_info", enemy.PlayerName));
+            playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("nightmare_player_info", enemy.PlayerName));
 
             if (enemyEvent != null && enemyEvent.IsValid)
             {
-                enemyEvent.PrintToChat($" {ChatColors.Red}" + enemyEvent.GetTranslation("nightmare_enemy_info"));
+                enemyEvent.Notify($" {ChatColors.Red}" + enemyEvent.GetTranslation("nightmare_enemy_info"));
                 SkillUtils.EmitSoundToPlayer(enemyEvent, cursedSound, SkillsInfo.GetValue<float>(skillName, "soundVolume"));
             }
         }
@@ -148,7 +148,7 @@ namespace src.player.skills
 
                     var target = PlayerManager.GetPlayerFromEvent(PlayerManager.GetController(targetIndex));
                     if (target != null && target.IsValid && target.PawnIsAlive)
-                        target.PrintToChat($" {ChatColors.Green}" + target.GetTranslation("nightmare_disable_info"));
+                        target.Notify($" {ChatColors.Green}" + target.GetTranslation("nightmare_disable_info"));
                 }
 
                 SkillUtils.CloseMenu(player);

@@ -35,14 +35,14 @@ namespace src.player.skills
 
             if (playerInfo.SkillUsed)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
                 return;
             }
 
             var skill = SkillData.Skills.FirstOrDefault(s => player.GetSkillName(s.Skill).Equals(commands[0], StringComparison.OrdinalIgnoreCase) || s.Skill.ToString().Equals(commands[0], StringComparison.OrdinalIgnoreCase));
             if (skill == null)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslationWithoutIlliterate("skill_not_found_setskill"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslationWithoutIlliterate("skill_not_found_setskill"));
                 return;
             }
 
@@ -50,7 +50,7 @@ namespace src.player.skills
             {
                 if (!TakeMoney(player))
                 {
-                    playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("gambler_no_money"));
+                    playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("gambler_no_money"));
                     return;
                 }
 

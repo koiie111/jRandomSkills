@@ -1,0 +1,24 @@
+<root>
+    <styles><include src="s2r://panorama/styles/custom_game/jrandomskills.vcss_c" /></styles>
+    <Panel class="jrs-screen" hittest="false">
+        <Panel id="jrandomskills_card" class="jrs-hud jrs-hidden" hittest="false">
+            <Panel id="jrs_toast" class="jrs-toast jrs-hidden" hittest="false">
+                <Label text="{s:jrs_notice}" class="jrs-description" />
+            </Panel>
+            <Panel id="jrs_skill" class="jrs-card jrs-hidden" hittest="false">
+                <Label text="{s:jrs_icon}" class="jrs-icon" />
+                <Panel class="jrs-copy" hittest="false">
+                    <Panel class="jrs-eyebrow" hittest="false">
+                        <Label text="{s:jrs_kind}" class="jrs-kind" />
+                        <Label text="{s:jrs_observed}" class="jrs-observed" />
+                    </Panel>
+                    <Label text="{s:jrs_name}" class="jrs-name" />
+                    <Label text="{s:jrs_description}" class="jrs-description" />
+                    <Label text="{s:jrs_action}" class="jrs-action" />
+                    <Label id="jrs_bind_line" text="{s:jrs_bind}" class="jrs-bind jrs-hidden" />
+                    <Label text="{s:jrs_status}" class="jrs-status" />
+                </Panel>
+            </Panel>
+        </Panel>
+    </Panel>
+</root>

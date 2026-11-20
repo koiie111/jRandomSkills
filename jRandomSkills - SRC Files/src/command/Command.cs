@@ -36,10 +36,12 @@ namespace src.command
 
                 var commands = new Dictionary<IEnumerable<string>, (string description, CommandInfo.CommandCallback handler)>
                 {
-                    { SplitCommands("bind"), ("Show skill bind help", (player, _) => SkillBindHelp.Print(player, true)) },
+                    { SplitCommands("skillsummary"), ("Open the last skills summary", (player, _) => Hud.ShowSummary(player)) },
+                    { SplitCommands("skillvote"), ("Open an active vote", (player, _) => VoteSystem.ShowVote(player)) },
+                    { SplitCommands("bind"), ("Show skill bind help", (player, _) => Hud.ShowWelcome(player)) },
                     { SplitCommands(config.NormalCommands.SetSkillCommand.Alias), ("Set skill", Command_SetSkill) },
-                    { SplitCommands(config.NormalCommands.SkillsListCommand.Alias), ("Delete all records", Command_SkillsListMenu) },
-                    { SplitCommands(config.NormalCommands.UseSkillCommand.Alias), ("Use/Type skill", Command_UseTypeSkill) },
+                    { SplitCommands(config.NormalCommands.SkillsListCommand.Alias), ("Show skills", Command_SkillsListMenu) },
+                    { SplitCommands(config.NormalCommands.UseSkillCommand.Alias + ", useskill"), ("Use/Type skill", Command_UseTypeSkill) },
                     { SplitCommands(config.NormalCommands.ConsoleCommand.Alias), ("Console command", Command_CustomCommand) },
                     { SplitCommands(config.NormalCommands.HealCommand.Alias), ("Heal", Command_Heal) },
                     { SplitCommands(config.NormalCommands.HealthCommand.Alias), ("Set heath", Command_Health) },
@@ -165,8 +167,6 @@ namespace src.command
 
                 SkillUtils.PrintToChat(player, $"{player.GetTranslationWithoutIlliterate("done_setskill")}: {ChatColors.LightRed}{player.GetSkillName(skill.Skill)} {ChatColors.Lime}{player.GetTranslationWithoutIlliterate("for_setskill")} {ChatColors.LightRed}\u202A{targetPlayer.PlayerName}\u202C");
 
-                if (skill.Display)
-                    SkillUtils.PrintToChat(player, $"{ChatColors.DarkRed}{player.GetSkillName(skill.Skill)}{ChatColors.Lime}: {player.GetSkillDescription(skill.Skill)}", border: "b");
             }
             else
             {
@@ -206,7 +206,7 @@ namespace src.command
                     Server.PrintToConsole("Invalid entity index!");
                     return;
                 }
-                player.PrintToChat("Invalid entity index!");
+                player.Notify("Invalid entity index!");
                 return;
             }
 
@@ -215,7 +215,7 @@ namespace src.command
             if (player == null)
                 Server.PrintToConsole(entity != null ? $"Entity {entity?.DesignerName} exists!" : "Entity does not exist!");
             else
-                player.PrintToChat(entity != null ? $"Entity {entity?.DesignerName} exists!" : "Entity does not exist!");
+                player.Notify(entity != null ? $"Entity {entity?.DesignerName} exists!" : "Entity does not exist!");
         }
 
         [CommandHelper(minArgs: 1, whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
@@ -364,7 +364,7 @@ namespace src.command
             if (player == null || !player.IsValid || player.PlayerPawn.Value == null || !player.PlayerPawn.Value.IsValid || player.LifeState != (byte)LifeState_t.LIFE_ALIVE) return;
             if (!string.IsNullOrEmpty(config.NormalCommands.HealCommand.Permissions) && !AdminManager.PlayerHasPermissions(player, config.NormalCommands.HealCommand.Permissions)) return;
             SkillUtils.AddHealth(player.PlayerPawn.Value, 100);
-            player.PrintToChat($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("healed")}");
+            player.Notify($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("healed")}");
         }
 
         [CommandHelper(minArgs: 1, whoCanExecute: CommandUsage.CLIENT_ONLY)]
@@ -378,7 +378,7 @@ namespace src.command
             if (int.TryParse(command.GetArg(1), out int health))
                 SkillUtils.AddHealth(pawn, health - pawn.Health, health);
 
-            player.PrintToChat($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("set_health")}");
+            player.Notify($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("set_health")}");
         }
 
         [CommandHelper(minArgs: 0, whoCanExecute: CommandUsage.CLIENT_ONLY)]
@@ -400,7 +400,7 @@ namespace src.command
                 time = 40;
 
             bomb.C4Blow = Server.CurrentTime + time;
-            player.PrintToChat($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("planted_bomb_spawned", [time])}");
+            player.Notify($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("planted_bomb_spawned", [time])}");
         }
 
         [CommandHelper(minArgs: 0, whoCanExecute: CommandUsage.CLIENT_ONLY)]
@@ -419,7 +419,7 @@ namespace src.command
             var bot = Utilities.GetPlayers().Where(p => p != null && p.IsValid && p.IsBot && p.PawnIsAlive && (botSlot == -1 || p.Slot == botSlot)).FirstOrDefault();
             if (bot == null || bot.PlayerPawn.Value == null || !bot.PlayerPawn.Value.IsValid)
             {
-                player.PrintToChat($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("bot_placed_not_found")}");
+                player.Notify($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("bot_placed_not_found")}");
                 return;
             }
 
@@ -430,7 +430,7 @@ namespace src.command
                 || (int.TryParse(command.GetArg(2), out int godmodeInt) && godmodeInt == 1))
                 bot.PlayerPawn.Value.TakesDamage = false;
 
-            player.PrintToChat($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("bot_placed")}");
+            player.Notify($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("bot_placed")}");
         }
 
         [CommandHelper(minArgs: 0, whoCanExecute: CommandUsage.CLIENT_ONLY)]
@@ -447,8 +447,8 @@ namespace src.command
             bool isDisplayHUD = playerInfo.HideHUD < tickCount;
 
             playerInfo.HideHUD = isDisplayHUD ? int.MaxValue : int.MinValue;
-            SkillUtils.SetMenuPaused(player, isDisplayHUD);
-            player.PrintToChat($" {(!isDisplayHUD ? ChatColors.Green : ChatColors.Red)}{player.GetTranslationWithoutIlliterate(!isDisplayHUD ? "hud_on" : "hud_off")}");
+            if (isDisplayHUD) Hud.DismissMenu(player);
+            player.Notify($" {(!isDisplayHUD ? ChatColors.Green : ChatColors.Red)}{player.GetTranslationWithoutIlliterate(!isDisplayHUD ? "hud_on" : "hud_off")}");
         }
 
         [CommandHelper(minArgs: 2, whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
@@ -557,8 +557,6 @@ namespace src.command
 
                 SkillUtils.PrintToChat(player, $"{player.GetTranslationWithoutIlliterate("done_setskill")}: {ChatColors.LightRed}{player.GetSkillName(skill.Skill)} {ChatColors.Lime}{player.GetTranslationWithoutIlliterate("for_setskill")} {ChatColors.LightRed}\u202A{targetPlayer.PlayerName}\u202C");
 
-                if (skill.Display)
-                    SkillUtils.PrintToChat(player, $"{ChatColors.DarkRed}{player.GetSkillName(skill.Skill)}{ChatColors.Lime}: {player.GetSkillDescription(skill.Skill)}", border: "b");
             }
             else
             {
@@ -611,7 +609,7 @@ namespace src.command
                 Event.InvalidateFreezeDisabledCache();
 
                 if (player != null && player.IsValid)
-                    player.PrintToChat($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("reload")}");
+                    player.Notify($" {ChatColors.Green}{player.GetTranslationWithoutIlliterate("reload")}");
                 else
                     Server.PrintToConsole($" {ChatColors.Green}{Localization.GetTranslationWithoutIlliterate("reload")}");
 
@@ -676,7 +674,7 @@ namespace src.command
             }
 
             var skill = skillsList[nextIndex];
-            player.PrintToChat(nextIndex.ToString());
+            player.Notify(nextIndex.ToString());
 
             var skillPlayer = PlayerManager.GetPlayer(targetPlayer);
             if (skillPlayer == null) return;

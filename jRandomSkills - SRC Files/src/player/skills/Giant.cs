@@ -65,7 +65,7 @@ namespace src.player.skills
                 SkillUtils.CreateMenu(player, menuItems);
             }
             else
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
         }
 
         public static void OnTick()
@@ -99,26 +99,26 @@ namespace src.player.skills
 
             if (playerInfo.SkillUsed)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
                 return;
             }
 
             if (commands.Length == 0 || !uint.TryParse(commands[0], out uint enemyIndex))
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
             var enemy = PlayerManager.GetController(enemyIndex);
             if (enemy == null || !enemy.IsValid || enemy.Team == player.Team)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
             if (PlayerManager.GetPlayer(enemy)?.Skill == Skills.Chicken)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
@@ -136,12 +136,12 @@ namespace src.player.skills
             playerInfo.SkillUsed = true;
             SkillUtils.CloseMenu(player);
 
-            playerEvent.PrintToChat($" {ChatColors.Green}" + playerEvent.GetTranslation("giant_player_info", enemy.PlayerName, newSize));
+            playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("giant_player_info", enemy.PlayerName, newSize));
 
             var enemyEvent = PlayerManager.GetPlayerFromEvent(enemy);
             if (enemyEvent == null || !enemyEvent.IsValid) return;
 
-            enemyEvent.PrintToChat($" {ChatColors.Red}" + enemyEvent.GetTranslation("giant_enemy_info", newSize));
+            enemyEvent.Notify($" {ChatColors.Red}" + enemyEvent.GetTranslation("giant_enemy_info", newSize));
         }
 
         public static void DisableSkill(CCSPlayerController player)
@@ -195,7 +195,7 @@ namespace src.player.skills
 
             var targetEvent = PlayerManager.GetPlayerFromEvent(target);
             if (targetEvent != null && targetEvent.IsValid && targetEvent.PawnIsAlive)
-                targetEvent.PrintToChat($" {ChatColors.Green}" + targetEvent.GetTranslation("giant_disable_info"));
+                targetEvent.Notify($" {ChatColors.Green}" + targetEvent.GetTranslation("giant_disable_info"));
         }
 
         private static CCSPlayerController[] GetSelectableEnemies(CCSPlayerController player)

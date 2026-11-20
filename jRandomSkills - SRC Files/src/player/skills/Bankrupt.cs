@@ -67,7 +67,7 @@ namespace src.player.skills
             }
             else
             {
-                player.PrintToChat($" {ChatColors.Red}{player.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+                player.Notify($" {ChatColors.Red}{player.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
             }
         }
 
@@ -86,7 +86,7 @@ namespace src.player.skills
 
             if (playerInfo.SkillUsed)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_used_info")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_used_info")}");
                 return;
             }
 
@@ -98,15 +98,15 @@ namespace src.player.skills
                     ResetMoney(enemy);
                     playerInfo.SkillUsed = true;
                     SkillUtils.CloseMenu(player);
-                    playerEvent.PrintToChat($" {ChatColors.Lime}{playerEvent.GetTranslation("bankrupt_player_info", enemy.PlayerName)}");
+                    playerEvent.Notify($" {ChatColors.Lime}{playerEvent.GetTranslation("bankrupt_player_info", enemy.PlayerName)}");
 
                     var enemyEvent = PlayerManager.GetPlayerFromEvent(enemy);
                     if (enemyEvent != null && enemyEvent.IsValid)
-                        enemyEvent.PrintToChat($" {ChatColors.Red}{enemyEvent.GetTranslation("bankrupt_enemy_info")}");
+                        enemyEvent.Notify($" {ChatColors.Red}{enemyEvent.GetTranslation("bankrupt_enemy_info")}");
                     return;
                 }
             }
-            playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+            playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
         }
 
         private static void ResetMoney(CCSPlayerController enemy)

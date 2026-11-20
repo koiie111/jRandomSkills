@@ -83,7 +83,7 @@ namespace src.player.skills
 
             if (playerInfo.SkillUsed)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
                 return;
             }
 
@@ -91,7 +91,7 @@ namespace src.player.skills
 
             if (!uint.TryParse(enemyId, out uint enemyIndex))
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
@@ -99,7 +99,7 @@ namespace src.player.skills
 
             if (enemy == null)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
@@ -113,8 +113,8 @@ namespace src.player.skills
             SetCrosshair(enemyEvent, false);
             playerInfo.SkillUsed = true;
 
-            playerEvent.PrintToChat($" {ChatColors.Green}" + playerEvent.GetTranslation("jammer_player_info", enemy.PlayerName));
-            enemyEvent.PrintToChat($" {ChatColors.Red}" + enemyEvent.GetTranslation("jammer_enemy_info"));
+            playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("jammer_player_info", enemy.PlayerName));
+            enemyEvent.Notify($" {ChatColors.Red}" + enemyEvent.GetTranslation("jammer_enemy_info"));
         }
 
         private static void SetCrosshair(CCSPlayerController player, bool enabled)
@@ -152,7 +152,7 @@ namespace src.player.skills
                 SkillUtils.CreateMenu(player, menuItems);
             }
             else
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
         }
 
         public static void DisableSkill(CCSPlayerController player)
@@ -167,7 +167,7 @@ namespace src.player.skills
                     SetCrosshair(target2, true);
 
                     if (target1.PawnIsAlive)
-                        target1.PrintToChat($" {ChatColors.Green}" + target1.GetTranslation("jammer_disable_info"));
+                        target1.Notify($" {ChatColors.Green}" + target1.GetTranslation("jammer_disable_info"));
                 }
                 jammedPlayers.TryRemove(targetIndex, out _);
             }

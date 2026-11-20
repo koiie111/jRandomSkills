@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Events;
@@ -78,13 +78,11 @@ namespace src.player
             Instance.RegisterEventHandler<EventSmokegrenadeDetonate>(SmokegrenadeDetonate);
             Instance.RegisterEventHandler<EventSmokegrenadeExpired>(SmokegrenadeExpired);
 
-            Instance.RegisterListener<OnPlayerButtonsChanged>(CheckUseSkill);
             Instance.RegisterListener<OnEntitySpawned>(EntitySpawned);
             Instance.RegisterListener<OnTick>(OnTick);
             Instance.RegisterListener<OnClientPutInServer>(OnPlayerConnectedBot);
 
             Instance.HookUserMessage(208, PlayerMakeSound);
-            Instance.HookUserMessage(207, GetPrintToCenterHtml);
 
             Instance.RegisterListener<OnEntityTakeDamagePre>(OnEntityTakeDamagePre);
             Instance.RegisterListener<OnEntityTakeDamagePost>(OnEntityTakeDamagePost);
@@ -111,7 +109,6 @@ namespace src.player
             TryUnhook(() => Instance.UnhookEntityOutput("*", "OnEndTouch", OnTriggerExitOutput, HookMode.Pre));
             TryUnhook(() => VirtualFunctions.CCSPlayer_ItemServices_CanAcquireFunc.Unhook(OnWeaponCanAcquire, HookMode.Pre));
             TryUnhook(() => Instance.UnhookUserMessage(208, PlayerMakeSound));
-            TryUnhook(() => Instance.UnhookUserMessage(207, GetPrintToCenterHtml));
             TryUnhook(() => Instance.RemoveListener<CheckTransmit>(CheckTransmit));
             TryUnhook(NoRecoil.RestoreSpread);
         }
@@ -177,45 +174,6 @@ namespace src.player
             lock (setLock)
             {
                 Dispatch(playerMakeSoundCallbacks, um);
-                return HookResult.Continue;
-            }
-        }
-
-        private static HookResult GetPrintToCenterHtml(UserMessage um)
-        {
-            if (!Config.LoadedConfig.HideHudForOtherPlugins) return HookResult.Continue;
-
-            int tickCount = Server.TickCount;
-            if (tickCount % 10 != 0) return HookResult.Continue;
-            
-            lock (setLock)
-            {
-                if (um.ReadUInt("eventid") != 226)
-                    return HookResult.Continue;
-
-                var debug = um.DebugString;
-                var match = Regex.Match(debug, @"val_string:\s*""(.*?)""");
-
-                if (match.Success)
-                {
-                    var html = match.Groups[1].Value.Replace("\\'", "'");
-                    if (string.IsNullOrEmpty(html)) return HookResult.Continue;
-                    
-                    bool isOtherPlugin = !html.StartsWith("<jRS/>");
-
-                    var player = um.Recipients.FirstOrDefault();
-                    if (player == null || !player.IsValid) return HookResult.Continue;
-
-                    var playerInfo = PlayerManager.GetPlayer(PlayerManager.GetPlayerEvent(player) ?? player);
-                    if (playerInfo == null) return HookResult.Continue;
-
-                    if (isOtherPlugin && playerInfo.HideHUD != int.MaxValue)
-                    {
-                        playerInfo.HideHUD = tickCount + 15;
-                        SkillUtils.SetMenuPaused(player, true);
-                    }
-                }
-
                 return HookResult.Continue;
             }
         }
@@ -538,20 +496,14 @@ namespace src.player
 
                 Localization.PreResolveLanguage(player);
 
-                string welcomeMsg = player.GetTranslationWithoutIlliterate("welcome_message", "welcome");
-                foreach (string line in welcomeMsg.Split("\n"))
-                    player.PrintToChat($" {ChatColors.Green}" + line.Replace("{PLAYER}", $" {ChatColors.Red}\u202A{player.PlayerName}\u202C{ChatColors.Green}", StringComparison.OrdinalIgnoreCase)
-                                            .Replace("{SERVER_NAME}", $" {ChatColors.Red}{SkillUtils.CvarString("hostname", "Default Server")}{ChatColors.Green}", StringComparison.OrdinalIgnoreCase)
-                                            .Replace("{VERSION}", $" {ChatColors.Red}v{Instance.ModuleVersion}{ChatColors.Green}", StringComparison.OrdinalIgnoreCase)
-                                            .Replace("{SKILLS_COUNT}", $" {ChatColors.Red}{SkillData.Skills.Count - 1}{ChatColors.Green}", StringComparison.OrdinalIgnoreCase)
-                                            .Replace("{AUTHOR1}", $" {ChatColors.Red}Jakub Bartosik (D3X){ChatColors.Green} ({ChatColors.Red}https://github.com/jakubbartosik/dRandomSkills{ChatColors.Green})", StringComparison.OrdinalIgnoreCase)
-                                            .Replace("{AUTHOR2}", $" {ChatColors.Red}Juzlus{ChatColors.Green} ({ChatColors.Red}https://github.com/Juzlus/jRandomSkills{ChatColors.Green})", StringComparison.OrdinalIgnoreCase));
+                Hud.ReadWelcome(player);
                 return HookResult.Continue;
             }
         }
 
         private static void OnPlayerDisconnect(int slot)
         {
+            Hud.Forget(slot);
             lock (setLock)
             {
                 PlayerManager.ResetKeyCache();
@@ -575,7 +527,6 @@ namespace src.player
             }
             catch (Exception ex) { ReportCallbackFailure($"{info.Skill}.DisableSkill", ex); }
 
-            SkillBindHelp.Forget(key);
             ReleaseCursesTargeting(key);
             foreach (var skill in SkillData.Skills)
                 if (playerDisconnectCallbacks.Get(skill.Skill) is { } handler)
@@ -725,98 +676,6 @@ namespace src.player
             }
         }
 
-        private static void CheckUseSkill(CCSPlayerController player, PlayerButtons pressed, PlayerButtons released)
-        {
-            if (player == null || !player.IsValid || player.LifeState != (byte)LifeState_t.LIFE_ALIVE) return;
-
-            lock (setLock)
-            {
-                string? button = Config.LoadedConfig.AlternativeSkillButton;
-                if (string.IsNullOrEmpty(button) || button.Length < 2) return;
-
-                string buttonName = $"{char.ToUpperInvariant(button[0])}{button[1..].ToLowerInvariant()}";
-                if (!Enum.TryParse<PlayerButtons>(buttonName, out var skillButton)) return;
-
-                if ((pressed & skillButton) == 0) return;
-
-                if (SkillUtils.HasMenu(player)) return;
-
-                var playerInfo = PlayerManager.GetPlayer(player);
-                if (playerInfo == null || playerInfo.IsDrawing) return;
-
-                if (SkillsInfo.GetValue<bool>(playerInfo.Skill, "disableOnFreezeTime") && SkillUtils.IsFreezeTime())
-                    return;
-
-                if (skillButton == PlayerButtons.Use)
-                {
-                    var pawn = player.PlayerPawn.Value;
-                    if (pawn == null || !pawn.IsValid) return;
-                    if (pawn.AbsOrigin == null || pawn.AbsRotation == null) return;
-
-                    if (pawn.IsDefusing) return;
-                    if (IsAimingAtPlantedBomb(player, pawn)) return;
-
-                    Vector eyePos = new(pawn.AbsOrigin.X, pawn.AbsOrigin.Y, pawn.AbsOrigin.Z + pawn.ViewOffset.Z);
-                    Vector endPos = eyePos + SkillUtils.GetForwardVector(pawn.EyeAngles) * 80;
-
-                    ulong mask = (ulong)Masks.SolidBrushOnly | (ulong)(Contents.Player | Contents.Npc);
-                    ulong contents = 0;
-                    var result = RayTrace.TraceShape(player, eyePos, endPos, mask, contents);
-
-                    if (result.HasValue && result.Value.DidHit)
-                    {
-                        var entity = Activator.CreateInstance(typeof(CBaseEntity), result.Value.HitEntity) as CBaseEntity;
-                        if (entity == null || !entity.IsValid) return;
-
-                        string designer = entity.DesignerName;
-
-                        if (designer.Contains("door"))
-                        {
-                            if (playerInfo.Skill == Skills.ThirdEye && !ThirdEye.IsOrginalCamera(player))
-                                SkillUtils.ToogleDoor(entity, pawn);
-                            return;
-                        }
-
-                        if (designer == "planted_c4" && player.Team == CsTeam.CounterTerrorist) return;
-
-                        if (designer.Contains("button") || designer.Contains("weapon") || designer.Contains("blocker")) return;
-                    }
-                }
-
-                Debug.WriteToDebug($"Player {player.PlayerName} used the skill: {playerInfo.Skill} by PlayerButtons: {pressed}", DebugCategory.Skill);
-                Instance.SkillAction(playerInfo.Skill.ToString(), "UseSkill", [player]);
-            }
-        }
-
-        private const float BombBlockRange = 100f;
-        private const float BombBlockCos = 0.7071f;
-
-        private static bool IsAimingAtPlantedBomb(CCSPlayerController player, CCSPlayerPawn pawn)
-        {
-            if (player.Team != CsTeam.CounterTerrorist) return false;
-            if (pawn.AbsOrigin == null) return false;
-
-            foreach (var bomb in Utilities.FindAllEntitiesByDesignerName<CPlantedC4>("planted_c4"))
-            {
-                if (bomb == null || !bomb.IsValid || bomb.AbsOrigin == null) continue;
-                if (!bomb.BombTicking || bomb.BombDefused) continue;
-
-                float dx = bomb.AbsOrigin.X - pawn.AbsOrigin.X;
-                float dy = bomb.AbsOrigin.Y - pawn.AbsOrigin.Y;
-                float dz = bomb.AbsOrigin.Z - (pawn.AbsOrigin.Z + pawn.ViewOffset.Z);
-
-                float distance = MathF.Sqrt(dx * dx + dy * dy + dz * dz);
-                if (distance > BombBlockRange || distance <= 0.01f) continue;
-
-                var forward = SkillUtils.GetForwardVector(pawn.EyeAngles);
-                float dot = (forward.X * dx + forward.Y * dy + forward.Z * dz) / distance;
-
-                if (dot >= BombBlockCos) return true;
-            }
-
-            return false;
-        }
-
         private static HookResult BulletImpact(EventBulletImpact @event, GameEventInfo info)
         {
             lock (setLock)
@@ -828,64 +687,5 @@ namespace src.player
 
         private static readonly Dictionary<uint, jSkill_SkillInfo> nextRoundPicks = [];
 
-        public static void UpdateSkillHUD(CCSPlayerController? player, jSkill_PlayerInfo? skillPlayer, string? headerLine, string? centerLine, string? extraLine, bool isDescription)
-        {
-            lock (setLock)
-            {
-                if (player == null || !player.IsValid) return;
-
-                if (Illiterate.CheckIlliterateSkill(player))
-                {
-                    centerLine = Illiterate.GetRandomText(centerLine);
-                    extraLine = Illiterate.GetRandomText(extraLine);
-                }
-
-                var config = Config.LoadedConfig.HtmlHudCustomisation;
-
-                var cache = skillPlayer?.HudCache;
-                if (cache != null
-                    && cache.Content != null
-                    && cache.PlayerKey == player.Key()
-                    && ReferenceEquals(cache.Config, config)
-                    && cache.IsDescription == isDescription
-                    && string.Equals(cache.Header, headerLine, StringComparison.Ordinal)
-                    && string.Equals(cache.Center, centerLine, StringComparison.Ordinal)
-                    && string.Equals(cache.Extra, extraLine, StringComparison.Ordinal))
-                {
-                    player.PrintToCenterHtml(cache.Content);
-                    return;
-                }
-
-                var emptySymbol = $"<font class='fontSize-{(string.IsNullOrEmpty(headerLine) || string.IsNullOrEmpty(config.HeaderLineSize) ? "l" : "ml")}'> </font>";
-                var emptySymbol2 = $"<font class='fontSize-ml'> </font>";
-
-                string infoLine = string.IsNullOrEmpty(headerLine) || string.IsNullOrEmpty(config.HeaderLineSize)
-                    ? ""
-                    : $"<font class='fontWeight-Bold fontSize-{config.HeaderLineSize}' color='{config.HeaderLineColor}'>{headerLine}:</font><br>";
-
-                string skillLine = $"{emptySymbol2}<font class='fontWeight-Bold fontSize-{config.SkillLineSize}'>{centerLine}</font>{emptySymbol2}";
-
-                var extraLineSize = isDescription ? config.SkillDescriptionLineSize : config.InfoLineSize;
-                string remainingLine = string.IsNullOrWhiteSpace(extraLine) || string.IsNullOrEmpty(extraLineSize)
-                    ? ""
-                    : $"<br>{emptySymbol}<font class='fontSize-{extraLineSize}' color='{(isDescription ? config.SkillDescriptionLineColor : config.InfoLineColor)}'>{extraLine}</font>{emptySymbol}";
-
-                var hudContent = "<jRS/>" + infoLine + skillLine + remainingLine;
-
-                if (skillPlayer != null)
-                {
-                    cache ??= skillPlayer.HudCache = new HudCacheEntry();
-                    cache.PlayerKey = player.Key();
-                    cache.Config = config;
-                    cache.Header = headerLine;
-                    cache.Center = centerLine;
-                    cache.Extra = extraLine;
-                    cache.IsDescription = isDescription;
-                    cache.Content = hudContent;
-                }
-
-                player.PrintToCenterHtml(hudContent);
-            }
-        }
     }
 }

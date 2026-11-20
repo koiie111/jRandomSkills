@@ -1,0 +1,58 @@
+.jrs-screen { width: 100%; height: 100%; }
+.jrs-layer { z-index: 100; }
+.jrs-hidden { visibility: collapse; }
+.jrs-visible, .jrs-shown { visibility: visible; }
+.jrs-hud { width: 558px; align: center bottom; margin-bottom: 100px; flow-children: down; }
+.jrs-card, .jrs-toast {
+    width: 100%;
+    background-color: #101922f5;
+    border: 1px solid #425761;
+    border-radius: 10px;
+}
+.jrs-card { flow-children: right; padding: 11px 14px; border-left: 4px solid #70e4b5; }
+.jrs-card.jrs-negative { border-left: 4px solid #ff9494; }
+.jrs-card.jrs-mixed { border-left: 4px solid #ffd590; }
+.jrs-toast { padding: 8px 14px; margin-bottom: 6px; }
+.jrs-icon {
+    width: 38px; height: 38px; margin-right: 10px; text-align: center;
+    font-size: 29px; font-weight: bold; background-color: #213d37; color: #92ffcb; border-radius: 8px;
+}
+.jrs-negative .jrs-icon { color: #ffa9a9; background-color: #492f36; }
+.jrs-mixed .jrs-icon { color: #ffd590; background-color: #443926; }
+.jrs-copy { width: 476px; flow-children: down; }
+.jrs-eyebrow { width: 100%; flow-children: right; }
+.jrs-kind { color: #92ffcb; font-size: 15px; margin-right: 10px; }
+.jrs-negative .jrs-kind { color: #ffa9a9; }
+.jrs-mixed .jrs-kind { color: #ffd590; }
+.jrs-observed { color: #becdd7; font-size: 15px; }
+.jrs-name { width: 100%; color: #ffffff; font-size: 25px; font-weight: bold; }
+.jrs-description, .jrs-action, .jrs-bind, .jrs-status {
+    width: 100%;
+    color: #dce7ef;
+    font-size: 17px;
+    white-space: normal;
+}
+.jrs-action { color: #ffffff; font-weight: bold; }
+.jrs-bind { color: #a0dfef; font-size: 16px; }
+.jrs-status { color: #ffd590; }
+.jrs-menu {
+    width: 545px;
+    align: center center;
+    flow-children: down;
+    background-color: #131e29fa;
+    border: 1px solid #526873;
+    border-top: 4px solid #70e4b5;
+    border-radius: 12px;
+    padding: 18px;
+}
+.jrs-menu-header { width: 100%; flow-children: right; }
+.jrs-menu-title { width: 453px; color: #f4fbff; font-size: 25px; font-weight: bold; white-space: normal; }
+.jrs-body { width: 100%; color: #e0ebf2; font-size: 18px; white-space: normal; margin-top: 6px; }
+.jrs-option, .jrs-square { background-color: #273e4b; border: 1px solid #547681; border-radius: 6px; }
+.jrs-option { width: 100%; min-height: 37px; margin-top: 6px; padding: 6px 10px; }
+.jrs-option Label { color: #f3faff; font-size: 18px; white-space: normal; }
+.jrs-square { width: 34px; height: 34px; }
+.jrs-square Label { align: center center; color: #f3faff; font-size: 22px; }
+.jrs-option:hover, .jrs-square:hover { background-color: #345665; }
+.jrs-pages { align: center top; flow-children: right; margin-top: 10px; }
+.jrs-page { width: 85px; text-align: center; vertical-align: center; color: #e0ebf2; font-size: 18px; }

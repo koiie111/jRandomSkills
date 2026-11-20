@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 using src.utils;
@@ -38,7 +38,7 @@ namespace src.command
             votes.TryAdd(vote, 0);
             string commandName = $"!{VoteTypeCommands.GetCommand(vote.Type)?.Replace("css_", "")}{(!string.IsNullOrEmpty(vote?.Args) ? $" {vote?.Args}" : "")}";
 
-            Localization.PrintTranslationToChatAll($" {ChatColors.Lime}{{0}}", ["vote_started"], false, [commandName]);
+            Localization.PrintTranslationToChatAll($" {ChatColors.Lime}{{0}}", ["vote_started"], false, [commandName + "  ·  !skillvote"]);
             foreach (var player in Utilities.GetPlayers())
                 player.EmitSound("UIPanorama.tab_mainmenu_news");
 
@@ -61,12 +61,12 @@ namespace src.command
             {
                 if (votes.Keys.Any(v => v.NextVoting() > DateTime.Now))
                 {
-                    player.PrintToChat($" {ChatColors.Red}{player.GetTranslationWithoutIlliterate("vote_wait")}");
+                    player.Notify($" {ChatColors.Red}{player.GetTranslationWithoutIlliterate("vote_wait")}");
                     return;
                 }
                 else if (votes.Keys.Any(v => v.Type == voteType && v.NextSameVoting() > DateTime.Now))
                 {
-                    player.PrintToChat($" {ChatColors.Red}{player.GetTranslationWithoutIlliterate("vote_same_wait")}");
+                    player.Notify($" {ChatColors.Red}{player.GetTranslationWithoutIlliterate("vote_same_wait")}");
                     return;
                 }
 
@@ -75,13 +75,32 @@ namespace src.command
 
             if (vote == null)
             {
-                player.PrintToChat($" {ChatColors.Red}{player.GetTranslationWithoutIlliterate("vote_not_enough_players")}");
+                player.Notify($" {ChatColors.Red}{player.GetTranslationWithoutIlliterate("vote_not_enough_players")}");
                 return;
             }
 
             if (!vote.PlayersVoted.TryAdd(player.SteamID, 0))
-                player.PrintToChat($" {ChatColors.Red}{player.GetTranslationWithoutIlliterate("vote_alredy_voted")}");
+                player.Notify($" {ChatColors.Red}{player.GetTranslationWithoutIlliterate("vote_alredy_voted")}");
             else CheckVote(vote);
+        }
+
+        internal static void ShowVote(CCSPlayerController? player)
+        {
+            if (player is not { IsValid: true }) return;
+            var vote = votes.Keys.FirstOrDefault(v => v.GetActive());
+            if (vote == null)
+            {
+                player.Notify(player.GetTranslationWithoutIlliterate("jrs_vote_empty"));
+                return;
+            }
+            string command = VoteTypeCommands.GetCommand(vote.Type);
+            Hud.OpenMenu(player, player.GetTranslationWithoutIlliterate("jrs_vote_title"),
+                [new(player.GetTranslationWithoutIlliterate("jrs_vote_yes"), p =>
+                {
+                    Hud.DismissMenu(p);
+                    if (!vote.GetActive() || !votes.ContainsKey(vote)) return;
+                    if (vote.PlayersVoted.TryAdd(p.SteamID, 0)) CheckVote(vote);
+                })], $"{command} {vote.Args}");
         }
 
         private static void CheckVote(VoteData vote)

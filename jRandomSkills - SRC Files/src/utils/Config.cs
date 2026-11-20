@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using static src.jRandomSkills;
 
@@ -161,7 +161,7 @@ namespace src.utils
             [JsonConverter(typeof(DebugModeConverter))]
             public int DebugMode { get; set; }
             public bool PerfMode { get; set; }
-            public string? AlternativeSkillButton { get; set; }
+            public string? HudMySqlConnectionString { get; set; }
             public float SkillTimeBeforeStart { get; set; }
             public float SkillHudDuration { get; set; }
             public float SkillDescriptionDuration { get; set; }
@@ -199,7 +199,7 @@ namespace src.utils
                 EnableFullForceUpdate = false;
                 DebugMode = 0;
                 PerfMode = false;
-                AlternativeSkillButton = null;
+                HudMySqlConnectionString = null;
                 SkillTimeBeforeStart = 7;
                 SkillHudDuration = -1;
                 SkillDescriptionDuration = 7;

@@ -85,7 +85,7 @@ namespace src.player.skills
                 SkillUtils.CreateMenu(player, menuItems);
             }
             else
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("partner_no_teammates")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("partner_no_teammates")}");
         }
 
         public static void UseSkill(CCSPlayerController player)
@@ -114,20 +114,20 @@ namespace src.player.skills
 
             if (playerInfo.SkillUsed)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
                 return;
             }
 
             if (commands.Length == 0 || !uint.TryParse(commands[0], out uint partnerKey))
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("partner_no_teammates")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("partner_no_teammates")}");
                 return;
             }
 
             var partner = PlayerManager.GetController(partnerKey);
             if (partner == null || !partner.IsValid || partner.Team != player.Team || partner.Key() == player.Key() || partner.PlayerPawn.Value is not { IsValid: true, Health: > 0 })
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("partner_no_teammates")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("partner_no_teammates")}");
                 return;
             }
 
@@ -135,11 +135,11 @@ namespace src.player.skills
             playerInfo.SkillUsed = true;
             SkillUtils.CloseMenu(player);
 
-            playerEvent.PrintToChat($" {ChatColors.Green}{playerEvent.GetTranslation("partner_player_info", partner.PlayerName)}");
+            playerEvent.Notify($" {ChatColors.Green}{playerEvent.GetTranslation("partner_player_info", partner.PlayerName)}");
 
             var partnerEvent = PlayerManager.GetPlayerFromEvent(partner);
             if (partnerEvent != null && partnerEvent.IsValid)
-                partnerEvent.PrintToChat($" {ChatColors.Green}{partnerEvent.GetTranslation("partner_teammate_info", player.PlayerName)}");
+                partnerEvent.Notify($" {ChatColors.Green}{partnerEvent.GetTranslation("partner_teammate_info", player.PlayerName)}");
         }
 
         public static void OnTick()

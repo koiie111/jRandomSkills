@@ -1,0 +1,23 @@
+<root>
+    <styles><include src="s2r://panorama/styles/custom_game/jrandomskills.vcss_c" /></styles>
+    <Panel class="jrs-screen jrs-layer" hittest="false">
+        <Panel id="jrandomskills_menu" class="jrs-menu jrs-hidden">
+            <Panel class="jrs-menu-header">
+                <Label text="{s:jrs_menu_title}" class="jrs-menu-title" />
+                <Button id="jrs_close" class="jrs-square"><Label text="×" /></Button>
+            </Panel>
+            <Label text="{s:jrs_menu_body}" class="jrs-body" />
+            <Button id="jrs_option0" class="jrs-option jrs-hidden"><Label text="{s:jrs_row0}" /></Button>
+            <Button id="jrs_option1" class="jrs-option jrs-hidden"><Label text="{s:jrs_row1}" /></Button>
+            <Button id="jrs_option2" class="jrs-option jrs-hidden"><Label text="{s:jrs_row2}" /></Button>
+            <Button id="jrs_option3" class="jrs-option jrs-hidden"><Label text="{s:jrs_row3}" /></Button>
+            <Button id="jrs_option4" class="jrs-option jrs-hidden"><Label text="{s:jrs_row4}" /></Button>
+            <Button id="jrs_option5" class="jrs-option jrs-hidden"><Label text="{s:jrs_row5}" /></Button>
+            <Panel id="jrs_pages" class="jrs-pages jrs-hidden">
+                <Button id="jrs_prev" class="jrs-square"><Label text="‹" /></Button>
+                <Label text="{s:jrs_page}" class="jrs-page" />
+                <Button id="jrs_next" class="jrs-square"><Label text="›" /></Button>
+            </Panel>
+        </Panel>
+    </Panel>
+</root>
