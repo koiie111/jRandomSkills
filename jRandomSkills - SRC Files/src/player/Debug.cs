@@ -13,7 +13,7 @@ namespace src.player
     {
         private static string sessionId = "00000";
         private static readonly string debugFolder = Path.Combine(Instance.ModuleDirectory, "logs");
-        private static StreamWriter? _writer;
+        private static BufferedFileLog? _writer;
         private static readonly object _writeLock = new();
         private static bool damageHooked;
 
@@ -160,53 +160,19 @@ namespace src.player
             return gameRules.WarmupPeriod ? " [WARMUP]" : string.Empty;
         }
 
+        internal static bool ShouldWrite(DebugCategory category, bool ignoreIdle = false) =>
+            Config.DebugEnabled(category) && (ignoreIdle || category == DebugCategory.Core || !PlayerManager.IsServerIdle());
+
         public static void WriteToDebug(string message, DebugCategory category = DebugCategory.Core, bool ignoreIdle = false)
         {
-            if (!Config.DebugEnabled(category))
-                return;
-
-            if (!ignoreIdle && category != DebugCategory.Core && PlayerManager.IsServerIdle())
-                return;
+            if (!ShouldWrite(category, ignoreIdle)) return;
 
             lock (_writeLock)
             {
-                _writer ??= CreateWriter();
-                _writer?.WriteLine($"[{DateTime.Now:dd.MM.yyyy HH:mm:ss}] {message}");
+                _writer ??= new BufferedFileLog(Path.Combine(debugFolder, $"debug_{sessionId}.txt"));
+                _writer.Write($"[{DateTime.Now:dd.MM.yyyy HH:mm:ss}] {message}");
             }
         }
 
-        private static StreamWriter? CreateWriter()
-        {
-            try
-            {
-                Directory.CreateDirectory(debugFolder);
-                string path = Path.Combine(debugFolder, $"debug_{sessionId}.txt");
-                return new StreamWriter(path, append: true, System.Text.Encoding.UTF8) { AutoFlush = true };
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static void GetAllEntityIndexes()
-        {
-            if (Instance.GameRules == null) return;
-
-            var entities = Utilities.GetAllEntities();
-
-            foreach (var entity in entities)
-                if (entity != null && entity.IsValid && !string.IsNullOrEmpty(entity.DesignerName))
-                {
-                    string text = $"Entity: {entity.DesignerName}, ID: {entity.Index}";
-                    Console.WriteLine(text);
-
-                    string filename = $"debug_{sessionId}.txt";
-                    string path = Path.Combine(debugFolder, filename);
-
-                    Directory.CreateDirectory(debugFolder);
-                    File.AppendAllText(path, text, System.Text.Encoding.UTF8);
-                }
-        }
     }
 }

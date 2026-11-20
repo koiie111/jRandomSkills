@@ -9,6 +9,7 @@ namespace src.utils
     public static class PlayerManager
     {
         private static readonly ConcurrentDictionary<uint, jSkill_PlayerInfo> playersByKey = [];
+        private static jSkill_PlayerInfo[]? playerSnapshot;
 
         private static readonly Dictionary<nint, uint> keyByController = [];
         private static int cachedKeyMapTick = int.MinValue;
@@ -27,7 +28,16 @@ namespace src.utils
             keyByController.Clear();
             controllerByKey.Clear();
             cachedKeyMapTick = int.MinValue;
+            cachedTick = int.MinValue;
+            cachedIdleTick = int.MinValue;
+            InvalidatePawnSnapshots();
+        }
+
+        internal static void InvalidatePawnSnapshots()
+        {
             cachedSnapshotTick = int.MinValue;
+            cachedPawnMapTick = int.MinValue;
+            cachedBotMapTick = int.MinValue;
         }
 
         private static int cachedTick = int.MinValue;
@@ -41,7 +51,11 @@ namespace src.utils
 
         private static bool serverActive;
 
-        public static void SetServerActive(bool active) => serverActive = active;
+        public static void SetServerActive(bool active)
+        {
+            serverActive = active;
+            ResetKeyCache();
+        }
 
         public static bool IsServerIdle()
         {
@@ -157,12 +171,13 @@ namespace src.utils
             ResetKeyCache();
             if (playerInfo == null) return;
             playersByKey[playerInfo.PlayerKey] = playerInfo;
+            InvalidatePlayerSnapshot();
         }
 
         public static void UnregisterPlayer(uint playerKey)
         {
             ResetKeyCache();
-            playersByKey.TryRemove(playerKey, out _);
+            if (playersByKey.TryRemove(playerKey, out _)) InvalidatePlayerSnapshot();
         }
 
         public static List<jSkill_PlayerInfo> RemoveStale(uint playerIndex, uint currentKey)
@@ -172,7 +187,10 @@ namespace src.utils
             {
                 if (info.PlayerIndex != playerIndex || info.PlayerKey == currentKey) continue;
                 if (playersByKey.TryRemove(info.PlayerKey, out var stale))
+                {
                     removed.Add(stale);
+                    InvalidatePlayerSnapshot();
+                }
             }
             return removed;
         }
@@ -253,7 +271,7 @@ namespace src.utils
 
                     var handle = player.Pawn?.Value?.Handle;
                     if (handle != null && handle.Value != nint.Zero)
-                        controllersByPawn[handle.Value] = player;
+                        controllersByPawn.TryAdd(handle.Value, player);
                 }
             }
 
@@ -264,7 +282,7 @@ namespace src.utils
         {
             buffer.Clear();
 
-            foreach (var info in playersByKey.Values)
+            foreach (var info in GetPlayerSnapshot())
             {
                 if (info.Skill != skill) continue;
 
@@ -305,19 +323,29 @@ namespace src.utils
             return aliveSnapshot;
         }
 
-        public static IEnumerable<jSkill_PlayerInfo> GetAllPlayers()
+        private static void InvalidatePlayerSnapshot()
         {
-            return playersByKey.Values;
+            playerSnapshot = null;
+            Event.InvalidateActiveSkills();
         }
+
+        private static jSkill_PlayerInfo[] GetPlayerSnapshot() =>
+            playerSnapshot ??= [.. playersByKey.Values];
+
+        public static IEnumerable<jSkill_PlayerInfo> GetAllPlayers() => GetPlayerSnapshot();
 
         public static int GetPlayerCountBySkill(Skills skills)
         {
-            return playersByKey.Values.Count(p => p.Skill == skills);
+            int count = 0;
+            foreach (var player in GetPlayerSnapshot())
+                if (player.Skill == skills) count++;
+            return count;
         }
 
         public static void Clear()
         {
             playersByKey.Clear();
+            InvalidatePlayerSnapshot();
             ResetKeyCache();
         }
 

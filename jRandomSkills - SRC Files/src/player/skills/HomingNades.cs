@@ -25,23 +25,25 @@ namespace src.player.skills
 
         public static void OnTick()
         {
-            if (Server.TickCount % 10 != 0) return;
+            if (nades.IsEmpty || Server.TickCount % 10 != 0) return;
 
-            foreach (var index in nades.Keys.ToList())
+            float detonationRange = SkillsInfo.GetValue<float>(skillName, "detonationRange");
+            float maxVelocity = SkillsInfo.GetValue<float>(skillName, "maxVelocity");
+            List<(int Team, Vector Position)>? targets = null;
+            foreach (var (handle, oldPos) in nades)
             {
-                if (!nades.TryGetValue(index, out var data)) continue;
-                Vector oldPos = data;
-
-                var nade = Utilities.GetEntityFromIndex<CBaseCSGrenadeProjectile>((int)index);
-                if (nade == null || !nade.IsValid || nade.AbsOrigin == null)
+                var nade = new CHandle<CBaseCSGrenadeProjectile>(handle).Value;
+                var origin = nade?.AbsOrigin;
+                if (nade == null || !nade.IsValid || origin == null)
                 {
-                    nades.TryRemove(index, out _);
+                    nades.TryRemove(handle, out _);
                     continue;
                 }
 
-                Vector currentPos = new(nade.AbsOrigin.X, nade.AbsOrigin.Y, nade.AbsOrigin.Z);
+                Vector currentPos = new(origin.X, origin.Y, origin.Z);
                 double distanceMoved = SkillUtils.GetDistance(currentPos, oldPos);
-                Vector? calculatedVelocity = CalculateVelocity(nade, nade.TeamNum);
+                targets ??= GetTargets();
+                Vector? calculatedVelocity = CalculateVelocity(currentPos, nade.TeamNum, detonationRange, targets);
 
                 bool isZero = calculatedVelocity?.IsZero() == true;
 
@@ -50,47 +52,51 @@ namespace src.player.skills
                     nade.DetonateTime = isZero ? 0f : nade.CreateTime + 1.5f;
                     Utilities.SetStateChanged(nade, "CBaseGrenade", "m_flDetonateTime");
 
-                    nades.TryRemove(index, out _);
+                    nades.TryRemove(handle, out _);
                     continue;
                 }
 
                 Vector currentVel = new(nade.Velocity.X, nade.Velocity.Y, nade.Velocity.Z);
-                float maxVelocity = SkillsInfo.GetValue<float>(skillName, "maxVelocity");
                 Vector newVelocity = currentVel + calculatedVelocity;
 
                 float speed = newVelocity.Length();
                 if (speed > maxVelocity)
                     newVelocity *= (maxVelocity / speed);
 
-                nades[index] = currentPos;
+                nades[handle] = currentPos;
                 nade.Teleport(null, null, newVelocity);
             }
         }
 
-        private static Vector? CalculateVelocity(CBaseCSGrenadeProjectile nade, int team)
+        private static List<(int Team, Vector Position)> GetTargets()
         {
-            if (nade.AbsOrigin == null) return null;
+            var players = PlayerManager.GetTickPlayers();
+            var targets = new List<(int Team, Vector Position)>(players.Count);
+            foreach (var player in players)
+            {
+                if (!player.IsValid || !player.PawnIsAlive) continue;
+                var pawn = player.PlayerPawn.Value;
+                if (pawn?.IsValid != true || pawn.AbsOrigin is not { } origin) continue;
+                targets.Add((player.TeamNum, new Vector(origin.X, origin.Y, origin.Z)));
+            }
+            return targets;
+        }
 
+        private static Vector? CalculateVelocity(Vector nadePos, int team, float detonationRange, List<(int Team, Vector Position)> targets)
+        {
             Vector? closetEnemyPos = null;
             double minDistance = int.MaxValue;
-            Vector nadePos = nade.AbsOrigin;
 
-            foreach (var enemy in PlayerManager.GetTickPlayers().Where(p => p.IsValid && p.PawnIsAlive && p.TeamNum != team))
+            foreach (var (targetTeam, origin) in targets)
             {
-                var pawn = enemy.PlayerPawn.Value;
-                if (pawn?.IsValid != true || pawn.AbsOrigin == null) continue;
-
-                double dist = SkillUtils.GetDistance(nadePos, pawn.AbsOrigin);
-                if (dist < SkillsInfo.GetValue<float>(skillName, "detonationRange"))
-                {
-                    nades.TryRemove(nade.Index, out _);
-                    return Vector.Zero;
-                }
+                if (targetTeam == team) continue;
+                double dist = SkillUtils.GetDistance(nadePos, origin);
+                if (dist < detonationRange) return Vector.Zero;
 
                 if (dist < minDistance)
                 {
                     minDistance = dist;
-                    closetEnemyPos = pawn.AbsOrigin;
+                    closetEnemyPos = origin;
                 }
             }
 
@@ -131,13 +137,15 @@ namespace src.player.skills
             if (playerInfo?.Skill != skillName) return;
 
             Vector pos = new(grenade.AbsOrigin?.X, grenade.AbsOrigin?.Y, grenade.AbsOrigin?.Z);
-            nades.TryAdd(grenade.Index, pos);
+            uint handle = grenade.EntityHandle.Raw;
+            nades.TryAdd(handle, pos);
 
             Server.NextWorldUpdate(() =>
             {
-                if (grenade == null || !grenade.IsValid) return;
-                grenade.DetonateTime += 30f;
-                Utilities.SetStateChanged(grenade, "CBaseGrenade", "m_flDetonateTime");
+                var projectile = new CHandle<CBaseCSGrenadeProjectile>(handle).Value;
+                if (projectile?.IsValid != true) return;
+                projectile.DetonateTime += 30f;
+                Utilities.SetStateChanged(projectile, "CBaseGrenade", "m_flDetonateTime");
             });
         }
 

@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 using MaxMind.Db;
@@ -18,6 +18,11 @@ namespace src.utils
         private static readonly string playersLanguageFileName = "playersLanguage.json";
         private static readonly string configsFolderPath = Path.Combine(jRandomSkills.Instance.ModuleDirectory, "configs");
         private static ConcurrentDictionary<ulong, string> _playersLanguage = [];
+        private static readonly object languageSaveLock = new();
+        private static long languageRevision;
+        private static Task? languageSaveTask;
+        private static Reader? geoReader;
+
         private static string _lastSavedPlayersJson = string.Empty;
         private static readonly string geoliteFilePath = Path.Combine(jRandomSkills.Instance.ModuleDirectory, "packages", "GeoLite2-Country.mmdb");
 
@@ -46,6 +51,7 @@ namespace src.utils
 
         public static void Load()
         {
+            FlushLanguageSave();
             _translations.Clear();
             _playersLanguage.Clear();
             _lastSavedPlayersJson = string.Empty;
@@ -297,13 +303,12 @@ namespace src.utils
         private static string? GetLangCodeFromDatabase(string? playerIP)
         {
             if (string.IsNullOrEmpty(playerIP)) return null;
-            if (!File.Exists(geoliteFilePath)) return null;
-            using var reader = new Reader(geoliteFilePath);
+            if (!IPAddress.TryParse(playerIP, out var ip)) return null;
+            if (geoReader == null && File.Exists(geoliteFilePath))
+                geoReader = new Reader(geoliteFilePath);
+            if (geoReader == null) return null;
 
-            if (!IPAddress.TryParse(playerIP, out var ip))
-                return null;
-
-            var data = reader.Find<ConcurrentDictionary<string, object>>(ip);
+            var data = geoReader.Find<ConcurrentDictionary<string, object>>(ip);
             if (data == null || data.IsEmpty) return null;
 
             if (data.TryGetValue("country", out var _country) && _country is Dictionary<string, object> country)
@@ -390,14 +395,65 @@ namespace src.utils
 
         private static void SavePlayersLanguage()
         {
-            var json = BuildPlayersJson();
+            lock (languageSaveLock)
+            {
+                languageRevision++;
+                languageSaveTask ??= Task.Run(WritePendingLanguages);
+            }
+        }
 
-            if (json == null || json == _lastSavedPlayersJson)
-                return;
+        private static void WritePendingLanguages()
+        {
+            while (true)
+            {
+                long revision;
+                lock (languageSaveLock) revision = languageRevision;
 
-            Directory.CreateDirectory(configsFolderPath);
-            File.WriteAllText(Path.Combine(configsFolderPath, playersLanguageFileName), json);
-            _lastSavedPlayersJson = json;
+                try
+                {
+                    string json = BuildPlayersJson();
+                    if (json != _lastSavedPlayersJson)
+                    {
+                        Directory.CreateDirectory(configsFolderPath);
+                        string path = Path.Combine(configsFolderPath, playersLanguageFileName);
+                        File.WriteAllText(path + ".tmp", json);
+                        File.Move(path + ".tmp", path, overwrite: true);
+                        _lastSavedPlayersJson = json;
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    Console.Error.WriteLine($"[jRandomSkills] Could not save player languages: {ex.Message}");
+                }
+
+                lock (languageSaveLock)
+                {
+                    if (languageRevision != revision) continue;
+                    languageSaveTask = null;
+                    return;
+                }
+            }
+        }
+
+        private static void FlushLanguageSave()
+        {
+            Task? pending;
+            lock (languageSaveLock) pending = languageSaveTask;
+            pending?.GetAwaiter().GetResult();
+        }
+
+        internal static void Unload()
+        {
+            FlushLanguageSave();
+            try { DisposeGeoReader(); }
+            catch (Exception ex) when (ex is IOException or TypeLoadException) { }
+        }
+
+        [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+        private static void DisposeGeoReader()
+        {
+            geoReader?.Dispose();
+            geoReader = null;
         }
 
         private static string? GetLangCodeFromFile(ulong? playerSteamID)

@@ -121,31 +121,7 @@ namespace src.player
             catch (Exception ex) { Server.PrintToConsole($"[jRandomSkills] unhook failed: {ex.Message}"); }
         }
 
-        private static readonly Skills[] lateDamageSkills = [Skills.SecondLife, Skills.Phoenix, Skills.ReZombie];
-
         private static readonly HashSet<Skills> tickFailuresLogged = [];
-
-        private static void InvokeSkill(Skills skill, string methodName, object[] args)
-        {
-            try
-            {
-                Instance.SkillAction(SkillNames.Get(skill), methodName, args);
-            }
-            catch (Exception ex)
-            {
-                Server.PrintToConsole($"[jRandomSkills] {skill}.{methodName} failed: {ex.InnerException?.Message ?? ex.Message}");
-            }
-        }
-
-        private static void DispatchToActiveSkills(string methodName, params object[] args)
-        {
-            var seen = new HashSet<Skills>();
-            foreach (var p in Instance.SkillPlayer)
-            {
-                if (p.IsDrawing || !seen.Add(p.Skill)) continue;
-                InvokeSkill(p.Skill, methodName, args);
-            }
-        }
 
         private static void ReleaseCursesTargeting(uint victimKey)
         {
@@ -168,59 +144,6 @@ namespace src.player
                     Server.PrintToConsole($"[jRandomSkills] {curserSkill}.DisableSkill failed while releasing curse on leaving player: {(ex.InnerException ?? ex).Message}");
                 }
             }
-        }
-
-        private static readonly HashSet<Skills> transmitSeen = [];
-
-        private static void DispatchCheckTransmit(object[] args)
-        {
-            var seen = transmitSeen;
-            seen.Clear();
-            foreach (var p in Instance.SkillPlayer)
-            {
-                if (!seen.Add(p.Skill)) continue;
-                InvokeSkill(p.Skill, "CheckTransmit", args);
-            }
-        }
-
-        private static void DispatchOnTakeDamage(CBaseEntity damagedEntity, CTakeDamageInfo damageInfo, object[] args, bool post = false)
-        {
-            var seen = new HashSet<Skills>();
-            List<Skills>? deferred = null;
-
-            foreach (var p in Instance.SkillPlayer)
-            {
-                if (p.IsDrawing || !seen.Add(p.Skill)) continue;
-
-                if (Array.IndexOf(lateDamageSkills, p.Skill) >= 0)
-                {
-                    (deferred ??= []).Add(p.Skill);
-                    continue;
-                }
-
-                InvokeOnTakeDamage(p.Skill, damagedEntity, damageInfo, args, post);
-            }
-
-            if (deferred == null) return;
-            foreach (var skill in deferred)
-                InvokeOnTakeDamage(skill, damagedEntity, damageInfo, args, post);
-        }
-
-        private static void InvokeOnTakeDamage(Skills skill, CBaseEntity damagedEntity, CTakeDamageInfo damageInfo, object[] args, bool post)
-        {
-            if (!Config.DebugEnabled(DebugCategory.Damage))
-            {
-                InvokeSkill(skill, post ? "OnTakeDamagePost" : "OnTakeDamage", args);
-                return;
-            }
-
-            float before = damageInfo == null ? 0f : damageInfo.Damage;
-
-            InvokeSkill(skill, post ? "OnTakeDamagePost" : "OnTakeDamage", args);
-
-            float after = damageInfo == null ? 0f : damageInfo.Damage;
-            if (Math.Abs(before - after) > 0.01f)
-                Debug.WriteToDebug($"[DMG] {skill} changed damage {before:0.#} -> {after:0.#}{DescribeDamageTarget(damagedEntity)}", DebugCategory.Damage);
         }
 
         private static string DescribeDamageTarget(CBaseEntity damagedEntity)
@@ -252,7 +175,7 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("PlayerMakeSound", um);
+                Dispatch(playerMakeSoundCallbacks, um);
                 return HookResult.Continue;
             }
         }
@@ -300,7 +223,7 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("WeaponFire", @event);
+                Dispatch(weaponFireCallbacks, @event);
                 return HookResult.Continue;
             }
         }
@@ -315,7 +238,7 @@ namespace src.player
 
                 if (@event.Userid is { IsValid: true } equipper)
                     SkillUtils.InvalidateHiddenCache(equipper.Key());
-                DispatchToActiveSkills("WeaponEquip", @event);
+                Dispatch(weaponEquipCallbacks, @event);
                 return HookResult.Continue;
             }
         }
@@ -328,7 +251,7 @@ namespace src.player
 
                 if (@event.Userid is { IsValid: true } picker)
                     SkillUtils.InvalidateHiddenCache(picker.Key());
-                DispatchToActiveSkills("WeaponPickup", @event);
+                Dispatch(weaponPickupCallbacks, @event);
                 return HookResult.Continue;
             }
         }
@@ -337,7 +260,7 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("WeaponReload", @event);
+                Dispatch(weaponReloadCallbacks, @event);
                 return HookResult.Continue;
             }
         }
@@ -346,7 +269,7 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("GrenadeThrown", @event);
+                Dispatch(grenadeThrownCallbacks, @event);
                 return HookResult.Continue;
             }
         }
@@ -405,14 +328,20 @@ namespace src.player
         private static bool AskSkillSuppressesHit(Skills skill, EventPlayerHurt @event)
         {
             if (skill == Skills.None) return false;
-            return (bool?)Instance.SkillAction(skill.ToString(), "PlayerHurtPre", [@event]) == true;
+            var callback = playerHurtPreCallbacks.Get(skill);
+            if (callback is not { } handler) return false;
+
+            long start = PerfLog.Start();
+            bool blocked = handler.Invoke(@event);
+            PerfLog.Sample(handler.Label, start, 30.0, 1.0);
+            return blocked;
         }
 
         private static HookResult PlayerHurt(EventPlayerHurt @event, GameEventInfo info)
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("PlayerHurt", @event);
+                Dispatch(playerHurtCallbacks, @event);
                 return HookResult.Continue;
             }
         }
@@ -421,7 +350,7 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("PlayerJump", @event);
+                Dispatch(playerJumpCallbacks, @event);
                 return HookResult.Continue;
             }
         }
@@ -430,7 +359,8 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("BotTakeover", @event);
+                PlayerManager.InvalidatePawnSnapshots();
+                Dispatch(botTakeoverCallbacks, @event);
                 return HookResult.Continue;
             }
         }
@@ -439,16 +369,11 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("PlayerBlind", @event);
+                Dispatch(playerBlindCallbacks, @event);
                 return HookResult.Continue;
             }
         }
 
-        private static readonly Dictionary<Skills, string> _skillNames =
-            Enum.GetValues<Skills>().ToDictionary(s => s, s => s.ToString());
-        private static readonly HashSet<Skills> _activeSkillsSet = [];
-        private static readonly List<Skills> _activeSkillsList = [];
-        private static readonly Comparison<Skills> _tickOrderCmp = (a, b) => TickOrder(a).CompareTo(TickOrder(b));
         private static HashSet<Skills>? _freezeDisabledSkills;
 
         // AreaReaper and ChillOut depend on other skills' tick results, so they must tick last.
@@ -508,7 +433,7 @@ namespace src.player
                 var gameRules = jRandomSkills.Instance?.GameRules;
                 int round = gameRules == null || gameRules.Handle == IntPtr.Zero ? -1 : gameRules.TotalRoundsPlayed;
 
-                return $" players={players} alive={alive} bots={bots} skills={_activeSkillsList.Count} round={round}";
+                return $" players={players} alive={alive} bots={bots} skills={GetActiveSkills().Active.Length} round={round}";
             }
             catch
             {
@@ -524,26 +449,18 @@ namespace src.player
             long perfStart = PerfLog.Start();
             lock (setLock)
             {
-                _activeSkillsSet.Clear();
-                _activeSkillsList.Clear();
-                foreach (var p in Instance.SkillPlayer)
-                {
-                    if (p.IsDrawing) continue;
-                    if (_activeSkillsSet.Add(p.Skill))
-                        _activeSkillsList.Add(p.Skill);
-                }
-
-                _activeSkillsList.Sort(_tickOrderCmp);
-
                 bool freeze = SkillUtils.IsFreezeTime();
                 _freezeDisabledSkills ??= BuildFreezeDisabledSkills();
 
-                foreach (var skill in _activeSkillsList)
+                foreach (var handler in onTickCallbacks.Active())
                 {
+                    var skill = handler.Skill;
                     if (freeze && _freezeDisabledSkills.Contains(skill)) continue;
                     try
                     {
-                        Instance.SkillAction(_skillNames[skill], "OnTick");
+                        long start = PerfLog.Start();
+                        handler.Invoke();
+                        PerfLog.Sample(handler.Label, start, 30.0, 1.0);
                     }
                     catch (Exception ex)
                     {
@@ -670,6 +587,7 @@ namespace src.player
         {
             lock (setLock)
             {
+                PlayerManager.InvalidatePawnSnapshots();
                 var player = PlayerManager.GetPlayerEvent(@event.Userid);
                 if (player == null || !player.IsValid) return HookResult.Continue;
 
@@ -768,7 +686,7 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("PlayerDeath", @event);
+                Dispatch(playerDeathCallbacks, @event);
 
                 var victim = PlayerManager.GetPlayerEvent(@event.Userid);
                 if (victim == null) return HookResult.Continue;
@@ -896,7 +814,7 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("BulletImpact", @event);
+                Dispatch(bulletImpactCallbacks, @event);
                 return HookResult.Continue;
             }
         }

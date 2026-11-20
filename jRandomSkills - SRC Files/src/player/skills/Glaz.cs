@@ -12,7 +12,7 @@ namespace src.player.skills
     public class Glaz : ISkill
     {
         private const Skills skillName = Skills.Glaz;
-        private readonly static ConcurrentDictionary<int, byte> smokes = [];
+        private readonly static ConcurrentDictionary<int, uint> smokes = [];
         private readonly static ConcurrentDictionary<uint, int> playersWithSkill = [];
         private static readonly object setLock = new();
 
@@ -29,7 +29,9 @@ namespace src.player.skills
 
         public static void SmokegrenadeDetonate(EventSmokegrenadeDetonate @event)
         {
-            smokes.TryAdd(@event.Entityid, 0);
+            var entity = Utilities.GetEntityFromIndex<CBaseEntity>(@event.Entityid);
+            if (entity?.IsValid == true)
+                smokes[@event.Entityid] = entity.EntityHandle.Raw;
         }
 
         public static void SmokegrenadeExpired(EventSmokegrenadeExpired @event)
@@ -42,16 +44,14 @@ namespace src.player.skills
             if (smokes.IsEmpty || playersWithSkill.IsEmpty) return;
 
             List<uint> smokeIndexes = new(smokes.Count);
-            foreach (var entityIndex in smokes.Keys)
+            foreach (var (entityIndex, handle) in smokes)
             {
                 var entity = Utilities.GetEntityFromIndex<CBaseEntity>((int)entityIndex);
-                if (entity == null || !entity.IsValid) continue;
+                if (entity == null || !entity.IsValid || entity.EntityHandle.Raw != handle) continue;
                 smokeIndexes.Add(entity.Index);
             }
 
             if (smokeIndexes.Count == 0) return;
-
-            Dictionary<nint, uint>? pawnOwners = null;
 
             foreach (var (info, player) in infoList)
             {
@@ -63,34 +63,14 @@ namespace src.player.skills
                     var observerTarget = player.Pawn?.Value?.ObserverServices?.ObserverTarget?.Value?.Handle ?? nint.Zero;
                     if (observerTarget == nint.Zero) continue;
 
-                    pawnOwners ??= BuildPawnOwners();
-
-                    if (!pawnOwners.TryGetValue(observerTarget, out uint observedIndex)) continue;
-                    if (PlayerManager.GetPlayerByKey(observedIndex)?.Skill != skillName) continue;
+                    var observed = PlayerManager.GetControllerByPawn(observerTarget);
+                    if (PlayerManager.GetPlayer(observed)?.Skill != skillName) continue;
                 }
 
                 foreach (var index in smokeIndexes)
                     if (info.TransmitEntities.Contains(index))
                         info.TransmitEntities.Remove(index);
             }
-        }
-
-        private static Dictionary<nint, uint> BuildPawnOwners()
-        {
-            var players = PlayerManager.GetTickPlayers();
-            Dictionary<nint, uint> owners = new(players.Count);
-
-            foreach (var p in players)
-            {
-                if (p == null || !p.IsValid) continue;
-
-                nint handle = p.Pawn?.Value?.Handle ?? nint.Zero;
-                if (handle == nint.Zero) continue;
-
-                owners.TryAdd(handle, p.Key());
-            }
-
-            return owners;
         }
 
         public static void GrenadeThrown(EventGrenadeThrown @event)

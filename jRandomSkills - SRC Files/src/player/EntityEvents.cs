@@ -16,7 +16,7 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("BombBeginplant", @event);
+                Dispatch(bombBeginplantCallbacks, @event);
                 return HookResult.Continue;
             }
         }
@@ -25,7 +25,7 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("BombAbortplant", @event);
+                Dispatch(bombAbortplantCallbacks, @event);
                 return HookResult.Continue;
             }
         }
@@ -35,7 +35,7 @@ namespace src.player
             lock (setLock)
             {
                 PlayerManager.MarkBombPlanted();
-                DispatchToActiveSkills("BombPlanted", @event);
+                Dispatch(bombPlantedCallbacks, @event);
                 return HookResult.Continue;
             }
         }
@@ -44,7 +44,7 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("BombBegindefuse", @event);
+                Dispatch(bombBegindefuseCallbacks, @event);
                 return HookResult.Continue;
             }
         }
@@ -53,7 +53,7 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("DecoyStarted", @event);
+                Dispatch(decoyStartedCallbacks, @event);
                 return HookResult.Continue;
             }
         }
@@ -62,7 +62,7 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("DecoyDetonate", @event);
+                Dispatch(decoyDetonateCallbacks, @event);
                 return HookResult.Continue;
             }
         }
@@ -71,7 +71,7 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("SmokegrenadeDetonate", @event);
+                Dispatch(smokegrenadeDetonateCallbacks, @event);
                 return HookResult.Continue;
             }
         }
@@ -80,7 +80,7 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchToActiveSkills("SmokegrenadeExpired", @event);
+                Dispatch(smokegrenadeExpiredCallbacks, @event);
                 return HookResult.Continue;
             }
         }
@@ -92,12 +92,20 @@ namespace src.player
                 CountDamageResolution(info);
                 SkillUtils.TrackHealthBeforeHit(entity, info);
 
-                object[] args = [entity, info];
-                DispatchOnTakeDamage(entity, info, args);
+                bool debug = Config.DebugEnabled(DebugCategory.Damage);
+                foreach (var handler in onTakeDamageCallbacks.Active())
+                    InvokeDamage(handler, entity, info, debug);
 
-                if (Fortnite.skillInThisRound == true &&
-                    !Instance.SkillPlayer.Any(p => !p.IsDrawing && p.Skill == Skills.Fortnite))
-                    Instance.SkillAction("Fortnite", "OnTakeDamage", args);
+                if (Fortnite.skillInThisRound == true && !GetActiveSkills().Active.Contains(Skills.Fortnite))
+                {
+                    var handler = onTakeDamageCallbacks.Get(Skills.Fortnite);
+                    if (handler is { } callback)
+                    {
+                        long start = PerfLog.Start();
+                        callback.Invoke(entity, info);
+                        PerfLog.Sample(callback.Label, start, 30.0, 1.0);
+                    }
+                }
 
                 SkillUtils.ApplyNativeKill(entity, info);
                 return HookResult.Continue;
@@ -138,7 +146,13 @@ namespace src.player
         {
             lock (setLock)
             {
-                DispatchOnTakeDamage(entity, info, [entity, info, result], true);
+                bool debug = Config.DebugEnabled(DebugCategory.Damage);
+                foreach (var handler in onTakeDamagePostCallbacks.Active())
+                {
+                    float before = debug ? info?.Damage ?? 0f : 0f;
+                    Invoke(handler, entity, info!, result);
+                    if (debug && info != null) LogDamageChange(handler.Skill, entity, info, before);
+                }
             }
         }
 
@@ -151,7 +165,7 @@ namespace src.player
                 CBaseTrigger trigger = caller.As<CBaseTrigger>();
                 CBaseEntity entity = activator.As<CBaseEntity>();
 
-                DispatchToActiveSkills("OnTriggerEnter", trigger, entity);
+                Dispatch(onTriggerEnterCallbacks, trigger, entity);
                 return HookResult.Continue;
             }
         }
@@ -165,7 +179,7 @@ namespace src.player
                 CBaseTrigger trigger = caller.As<CBaseTrigger>();
                 CBaseEntity entity = activator.As<CBaseEntity>();
 
-                DispatchToActiveSkills("OnTriggerExit", trigger, entity);
+                Dispatch(onTriggerExitCallbacks, trigger, entity);
                 return HookResult.Continue;
             }
         }
@@ -174,6 +188,9 @@ namespace src.player
         {
             lock (setLock)
             {
+                var handlers = onWeaponCanAcquireCallbacks.Active();
+                if (handlers.Length == 0) return HookResult.Continue;
+
                 CCSPlayer_ItemServices itemServices = hook.GetParam<CCSPlayer_ItemServices>(0);
                 if (itemServices == null || itemServices.Pawn.Value == null || !itemServices.Pawn.Value.IsValid) return HookResult.Continue;
 
@@ -192,23 +209,15 @@ namespace src.player
                 CCSWeaponBaseVData vdata = VirtualFunctions.GetCSWeaponDataFromKeyFunc.Invoke(-1, econItem.ItemDefinitionIndex.ToString());
                 if (vdata == null || vdata.Handle == IntPtr.Zero) return HookResult.Continue;
 
-                var activeSkills = Instance.SkillPlayer
-                    .Where(p => !p.IsDrawing)
-                    .Select(p => p.Skill.ToString())
-                    .Distinct();
-
-                bool block = false;
-                foreach (string skillName in activeSkills)
+                foreach (var handler in handlers)
                 {
-                    bool? result = (bool?)Instance.SkillAction(skillName, "OnWeaponCanAcquire", [hook, player, econItem, vdata]);
-                    if (result == true)
-                    {
-                        block = true;
-                        break;
-                    }
+                    long start = PerfLog.Start();
+                    bool blocked = handler.Invoke(hook, player, econItem, vdata);
+                    PerfLog.Sample(handler.Label, start, 30.0, 1.0);
+                    if (blocked) return HookResult.Handled;
                 }
 
-                return block ? HookResult.Handled : HookResult.Continue;
+                return HookResult.Continue;
             }
         }
 
@@ -217,7 +226,7 @@ namespace src.player
             lock (setLock)
             {
                 PlayerManager.NoteSpawnedEntity(entity);
-                DispatchToActiveSkills("OnEntitySpawned", entity);
+                Dispatch(onEntitySpawnedCallbacks, entity);
             }
         }
 
@@ -246,7 +255,7 @@ namespace src.player
                     Server.PrintToConsole($"[jRandomSkills] CheckTransmit dying-filter failed: {ex.Message}");
                 }
 
-                DispatchCheckTransmit([infoList]);
+                Dispatch(checkTransmitCallbacks, infoList);
             }
             PerfLog.Sample("CheckTransmit", perfStart);
         }
