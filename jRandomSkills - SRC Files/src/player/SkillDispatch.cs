@@ -27,6 +27,7 @@ namespace src.player
         private static readonly SkillCallbacks<Action<EventPlayerJump>> playerJumpCallbacks = new(nameof(ISkill.PlayerJump));
         private static readonly SkillCallbacks<Action<EventBotTakeover>> botTakeoverCallbacks = new(nameof(ISkill.BotTakeover));
         private static readonly SkillCallbacks<Action<EventPlayerBlind>> playerBlindCallbacks = new(nameof(ISkill.PlayerBlind));
+        private static readonly SkillCallbacks<Action<uint>> playerDisconnectCallbacks = new(nameof(ISkill.PlayerDisconnect));
         private static readonly SkillCallbacks<Action<EventPlayerDeath>> playerDeathCallbacks = new(nameof(ISkill.PlayerDeath));
         private static readonly SkillCallbacks<Action<EventBulletImpact>> bulletImpactCallbacks = new(nameof(ISkill.BulletImpact));
         private static readonly SkillCallbacks<Action<EventBombBeginplant>> bombBeginplantCallbacks = new(nameof(ISkill.BombBeginplant));

@@ -69,6 +69,7 @@ namespace src
                 if (PlayerManager.GetPlayer(player)?.Skill == Skills.Partner) src.player.skills.Partner.DisableSkill(player);
             }
             src.player.skills.Adrenaline.NewRound();
+            src.player.skills.HomingNades.RestoreFuses();
             Event.Unload();
             Debug.Unload();
             PerfLog.Unload();

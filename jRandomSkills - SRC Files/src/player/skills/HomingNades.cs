@@ -4,13 +4,15 @@ using CounterStrikeSharp.API.Modules.Entities.Constants;
 using CounterStrikeSharp.API.Modules.Utils;
 using src.utils;
 using System.Collections.Concurrent;
+using Vector3 = System.Numerics.Vector3;
 
 namespace src.player.skills
 {
     public class HomingNades : ISkill
     {
         private const Skills skillName = Skills.HomingNades;
-        private readonly static ConcurrentDictionary<uint, Vector> nades = [];
+        private readonly record struct Flight(Vector3 Position, float? OriginalFuse = null);
+        private readonly static ConcurrentDictionary<uint, Flight> nades = [];
         private readonly static ConcurrentDictionary<uint, int> playersWithSkill = [];
 
         public static void LoadSkill()
@@ -21,6 +23,7 @@ namespace src.player.skills
         public static void NewRound()
         {
             nades.Clear();
+            playersWithSkill.Clear();
         }
 
         public static void OnTick()
@@ -29,8 +32,9 @@ namespace src.player.skills
 
             float detonationRange = SkillsInfo.GetValue<float>(skillName, "detonationRange");
             float maxVelocity = SkillsInfo.GetValue<float>(skillName, "maxVelocity");
-            List<(int Team, Vector Position)>? targets = null;
-            foreach (var (handle, oldPos) in nades)
+            List<(int Team, Vector3 Position)>? targets = null;
+            float strength = SkillsInfo.GetValue<float>(skillName, "strength");
+            foreach (var (handle, flight) in nades)
             {
                 var nade = new CHandle<CBaseCSGrenadeProjectile>(handle).Value;
                 var origin = nade?.AbsOrigin;
@@ -40,14 +44,14 @@ namespace src.player.skills
                     continue;
                 }
 
-                Vector currentPos = new(origin.X, origin.Y, origin.Z);
-                double distanceMoved = SkillUtils.GetDistance(currentPos, oldPos);
+                Vector3 currentPos = new(origin.X, origin.Y, origin.Z);
+                float distanceMovedSquared = Vector3.DistanceSquared(currentPos, flight.Position);
                 targets ??= GetTargets();
-                Vector? calculatedVelocity = CalculateVelocity(currentPos, nade.TeamNum, detonationRange, targets);
+                Vector3? calculatedVelocity = CalculateVelocity(currentPos, nade.TeamNum, detonationRange, strength, targets);
 
-                bool isZero = calculatedVelocity?.IsZero() == true;
+                bool isZero = calculatedVelocity == Vector3.Zero;
 
-                if (distanceMoved < 4 || calculatedVelocity == null || isZero)
+                if (distanceMovedSquared < 16 || calculatedVelocity == null || isZero)
                 {
                     nade.DetonateTime = isZero ? 0f : nade.CreateTime + 1.5f;
                     Utilities.SetStateChanged(nade, "CBaseGrenade", "m_flDetonateTime");
@@ -56,67 +60,50 @@ namespace src.player.skills
                     continue;
                 }
 
-                Vector currentVel = new(nade.Velocity.X, nade.Velocity.Y, nade.Velocity.Z);
-                Vector newVelocity = currentVel + calculatedVelocity;
-
+                var velocity = nade.Velocity;
+                Vector3 newVelocity = new Vector3(velocity.X, velocity.Y, velocity.Z) + calculatedVelocity.Value;
                 float speed = newVelocity.Length();
                 if (speed > maxVelocity)
-                    newVelocity *= (maxVelocity / speed);
+                    newVelocity *= maxVelocity / speed;
 
-                nades[handle] = currentPos;
-                nade.Teleport(null, null, newVelocity);
+                nades[handle] = flight with { Position = currentPos };
+                nade.Teleport(null, null, new Vector(newVelocity.X, newVelocity.Y, newVelocity.Z));
             }
         }
 
-        private static List<(int Team, Vector Position)> GetTargets()
+        private static List<(int Team, Vector3 Position)> GetTargets()
         {
             var players = PlayerManager.GetTickPlayers();
-            var targets = new List<(int Team, Vector Position)>(players.Count);
+            var targets = new List<(int Team, Vector3 Position)>(players.Count);
             foreach (var player in players)
             {
                 if (!player.IsValid || !player.PawnIsAlive) continue;
                 var pawn = player.PlayerPawn.Value;
                 if (pawn?.IsValid != true || pawn.AbsOrigin is not { } origin) continue;
-                targets.Add((player.TeamNum, new Vector(origin.X, origin.Y, origin.Z)));
+                targets.Add((player.TeamNum, new Vector3(origin.X, origin.Y, origin.Z)));
             }
             return targets;
         }
 
-        private static Vector? CalculateVelocity(Vector nadePos, int team, float detonationRange, List<(int Team, Vector Position)> targets)
+        private static Vector3? CalculateVelocity(Vector3 position, int team, float range, float strength, List<(int Team, Vector3 Position)> targets)
         {
-            Vector? closetEnemyPos = null;
-            double minDistance = int.MaxValue;
-
+            Vector3? nearest = null;
+            float nearestSquared = float.PositiveInfinity;
             foreach (var (targetTeam, origin) in targets)
             {
                 if (targetTeam == team) continue;
-                double dist = SkillUtils.GetDistance(nadePos, origin);
-                if (dist < detonationRange) return Vector.Zero;
-
-                if (dist < minDistance)
+                float squared = Vector3.DistanceSquared(position, origin);
+                if (range > 0 && squared < range * range) return Vector3.Zero;
+                if (squared < nearestSquared)
                 {
-                    minDistance = dist;
-                    closetEnemyPos = origin;
+                    nearestSquared = squared;
+                    nearest = origin;
                 }
             }
 
-            if (closetEnemyPos == null)
-                return null;
-
-            Vector direction = closetEnemyPos - nadePos;
-            float length = direction.Length();
-
-            if (length > 0)
-            {
-                float strength = SkillsInfo.GetValue<float>(skillName, "strength");
-                return new Vector(
-                    (direction.X / length) * strength,
-                    (direction.Y / length) * strength,
-                    (direction.Z / length) * strength
-                );
-            }
-
-            return Vector.Zero;
+            if (nearest == null) return null;
+            if (nearestSquared == 0) return Vector3.Zero;
+            return Vector3.Normalize(nearest.Value - position) * strength;
         }
 
         public static void OnEntitySpawned(CEntityInstance @event)
@@ -136,14 +123,17 @@ namespace src.player.skills
             var playerInfo = PlayerManager.GetPlayer(PlayerManager.GetPlayerEvent(player) ?? player);
             if (playerInfo?.Skill != skillName) return;
 
-            Vector pos = new(grenade.AbsOrigin?.X, grenade.AbsOrigin?.Y, grenade.AbsOrigin?.Z);
+            var origin = grenade.AbsOrigin;
+            Vector3 pos = origin == null ? Vector3.Zero : new(origin.X, origin.Y, origin.Z);
             uint handle = grenade.EntityHandle.Raw;
-            nades.TryAdd(handle, pos);
+            if (!nades.TryAdd(handle, new Flight(pos))) return;
 
             Server.NextWorldUpdate(() =>
             {
+                if (!nades.TryGetValue(handle, out var flight)) return;
                 var projectile = new CHandle<CBaseCSGrenadeProjectile>(handle).Value;
                 if (projectile?.IsValid != true) return;
+                nades[handle] = flight with { OriginalFuse = projectile.DetonateTime };
                 projectile.DetonateTime += 30f;
                 Utilities.SetStateChanged(projectile, "CBaseGrenade", "m_flDetonateTime");
             });
@@ -201,11 +191,29 @@ namespace src.player.skills
             SkillUtils.UpdateGrenadeCount(player, CsItem.HEGrenade, grenadeLimit);
         }
 
+        internal static void RestoreFuses()
+        {
+            foreach (var (handle, flight) in nades)
+            {
+                if (!nades.TryRemove(handle, out _) || flight.OriginalFuse is not float fuse) continue;
+                var projectile = new CHandle<CBaseCSGrenadeProjectile>(handle).Value;
+                if (projectile?.IsValid != true || projectile.DetonateTime != fuse + 30f) continue;
+                projectile.DetonateTime = fuse;
+                Utilities.SetStateChanged(projectile, "CBaseGrenade", "m_flDetonateTime");
+            }
+        }
+
+        public static void PlayerDisconnect(uint playerKey)
+        {
+            if (playersWithSkill.TryRemove(playerKey, out _) && playersWithSkill.IsEmpty)
+                RestoreFuses();
+        }
+
         public static void DisableSkill(CCSPlayerController player)
         {
             if (player == null || !player.IsValid) return;
 
-            playersWithSkill.TryRemove(player.Key(), out _);
+            PlayerDisconnect(player.Key());
             SkillUtils.UpdateGrenadeCount(player, CsItem.HEGrenade, 1);
         }
 

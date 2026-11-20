@@ -45,7 +45,7 @@ namespace src.player
         public static void Load()
         {
             Instance.RegisterEventHandler<EventPlayerConnectFull>(PlayerConnectFull);
-            Instance.RegisterEventHandler<EventPlayerDisconnect>(PlayerDisconnect);
+            Instance.RegisterListener<OnClientDisconnect>(OnPlayerDisconnect);
             // Instance.RegisterEventHandler<EventPlayerChat>(PlayerChat);
             Instance.RegisterEventHandler<EventPlayerSpawned>(PlayerSpawned);
             Instance.RegisterEventHandler<EventRoundStart>(RoundStart);
@@ -498,11 +498,11 @@ namespace src.player
                 var player = Utilities.GetPlayerFromSlot(playerSlot);
                 if (player == null || !player.IsValid) return;
 
+                foreach (var stale in PlayerManager.RemoveStale(player.Index, player.Key()))
+                    CleanDisconnectedPlayer(stale, null);
+
                 if (player.IsBot && !Config.LoadedConfig.EnableBotSkills)
                     return;
-
-                foreach (var stale in PlayerManager.RemoveStale(player.Key(), player.Key()))
-                    Debug.WriteToDebug($"Player slot {player.Key()} reused: dropped stale entry of {stale.PlayerName} (skill {stale.Skill}).", DebugCategory.Core);
 
                 if (PlayerManager.GetPlayer(player) != null)
                     return;
@@ -549,38 +549,44 @@ namespace src.player
             }
         }
 
-        private static HookResult PlayerDisconnect(EventPlayerDisconnect @event, GameEventInfo info)
+        private static void OnPlayerDisconnect(int slot)
         {
             lock (setLock)
             {
                 PlayerManager.ResetKeyCache();
-                var player = PlayerManager.GetPlayerEvent(@event.Userid);
-                if (player == null || !player.IsValid) return HookResult.Continue;
-
-                var skillPlayer = PlayerManager.GetPlayer(player);
-                if (skillPlayer == null) return HookResult.Continue;
-
-                Instance.SkillAction(skillPlayer.Skill.ToString(), "DisableSkill", [player]);
-
-                uint leavingKey = player.Key();
-                SkillBindHelp.Forget(leavingKey);
-
-                ReleaseCursesTargeting(leavingKey);
-
-                foreach (var skill in SkillData.Skills)
-                    Instance.SkillAction(skill.Skill.ToString(), "PlayerDisconnect", [leavingKey]);
-
-                SkillUtils.ClearCursesFor(leavingKey);
-                SkillUtils.ForgetHealthBeforeHit(leavingKey);
-                SkillUtils.InvalidateHiddenCache(leavingKey);
-                playersSkills.TryRemove(leavingKey, out _);
-
-                PlayerManager.UnregisterPlayer(player.Key());
-                EntityManager.DestroyPlayerEntities(player.Key());
-                SkillUtils.ClearHudSuppression(player.Key());
-
-                return HookResult.Continue;
+                var player = Utilities.GetPlayerFromSlot(slot);
+                // The disconnecting connection owns the record, even while controlling a bot.
+                foreach (var info in PlayerManager.GetAllPlayers())
+                {
+                    if (new CHandle<CCSPlayerController>(info.PlayerKey).Index != (uint)(slot + 1)) continue;
+                    CleanDisconnectedPlayer(info, player?.IsValid == true && player.Key() == info.PlayerKey ? player : null);
+                }
             }
+        }
+
+        private static void CleanDisconnectedPlayer(jSkill_PlayerInfo info, CCSPlayerController? player)
+        {
+            uint key = info.PlayerKey;
+            try
+            {
+                if (player != null)
+                    Instance.SkillAction(info.Skill.ToString(), "DisableSkill", [player]);
+            }
+            catch (Exception ex) { ReportCallbackFailure($"{info.Skill}.DisableSkill", ex); }
+
+            SkillBindHelp.Forget(key);
+            ReleaseCursesTargeting(key);
+            foreach (var skill in SkillData.Skills)
+                if (playerDisconnectCallbacks.Get(skill.Skill) is { } handler)
+                    Invoke(handler, key);
+
+            SkillUtils.ClearCursesFor(key);
+            SkillUtils.ForgetHealthBeforeHit(key);
+            SkillUtils.InvalidateHiddenCache(key);
+            playersSkills.TryRemove(key, out _);
+            PlayerManager.UnregisterPlayer(key);
+            EntityManager.DestroyPlayerEntities(key);
+            SkillUtils.ClearHudSuppression(key);
         }
 
         private static HookResult PlayerSpawned(EventPlayerSpawned @event, GameEventInfo info)

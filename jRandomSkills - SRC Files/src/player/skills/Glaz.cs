@@ -14,6 +14,7 @@ namespace src.player.skills
         private const Skills skillName = Skills.Glaz;
         private readonly static ConcurrentDictionary<int, uint> smokes = [];
         private readonly static ConcurrentDictionary<uint, int> playersWithSkill = [];
+        private static readonly List<uint> smokeIndexes = [];
         private static readonly object setLock = new();
 
         public static void LoadSkill()
@@ -43,11 +44,15 @@ namespace src.player.skills
         {
             if (smokes.IsEmpty || playersWithSkill.IsEmpty) return;
 
-            List<uint> smokeIndexes = new(smokes.Count);
+            smokeIndexes.Clear();
             foreach (var (entityIndex, handle) in smokes)
             {
-                var entity = Utilities.GetEntityFromIndex<CBaseEntity>((int)entityIndex);
-                if (entity == null || !entity.IsValid || entity.EntityHandle.Raw != handle) continue;
+                var entity = Utilities.GetEntityFromIndex<CBaseEntity>(entityIndex);
+                if (entity == null || !entity.IsValid || entity.EntityHandle.Raw != handle)
+                {
+                    smokes.TryRemove(new KeyValuePair<int, uint>(entityIndex, handle));
+                    continue;
+                }
                 smokeIndexes.Add(entity.Index);
             }
 
@@ -68,8 +73,7 @@ namespace src.player.skills
                 }
 
                 foreach (var index in smokeIndexes)
-                    if (info.TransmitEntities.Contains(index))
-                        info.TransmitEntities.Remove(index);
+                    info.TransmitEntities.Remove(index);
             }
         }
 
@@ -128,6 +132,8 @@ namespace src.player.skills
 
             SkillUtils.ForceFullUpdateToAll();
         }
+
+        public static void PlayerDisconnect(uint playerKey) => playersWithSkill.TryRemove(playerKey, out _);
 
         public static void DisableSkill(CCSPlayerController player)
         {

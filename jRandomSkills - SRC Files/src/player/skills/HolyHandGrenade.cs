@@ -93,6 +93,8 @@ namespace src.player.skills
             SkillUtils.UpdateGrenadeCount(player, CsItem.HEGrenade, grenadeLimit);
         }
 
+        public static void PlayerDisconnect(uint playerKey) => playersWithSkill.TryRemove(playerKey, out _);
+
         public static void DisableSkill(CCSPlayerController player)
         {
             if (player == null || !player.IsValid) return;

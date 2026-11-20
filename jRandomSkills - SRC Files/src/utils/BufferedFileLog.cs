@@ -4,18 +4,24 @@ namespace src.utils;
 
 internal sealed class BufferedFileLog : IDisposable
 {
-    private readonly Channel<string> lines = Channel.CreateUnbounded<string>(new UnboundedChannelOptions
+    private readonly Channel<string> lines = Channel.CreateBounded<string>(new BoundedChannelOptions(16384)
     {
+        FullMode = BoundedChannelFullMode.Wait,
         SingleReader = true
     });
     private readonly Task worker;
+    private long dropped;
 
     public BufferedFileLog(string path)
     {
         worker = Task.Run(() => WriteLines(path));
     }
 
-    public void Write(string line) => lines.Writer.TryWrite(line);
+    public void Write(string line)
+    {
+        if (!lines.Writer.TryWrite(line))
+            Interlocked.Increment(ref dropped);
+    }
 
     public void Dispose()
     {
@@ -49,7 +55,15 @@ internal sealed class BufferedFileLog : IDisposable
                     }
                 }
 
-                try { writer?.Flush(); }
+                try
+                {
+                    if (writer != null)
+                    {
+                        long skipped = Interlocked.Exchange(ref dropped, 0);
+                        if (skipped > 0) writer.WriteLine($"[jRandomSkills] Log queue full, skipped {skipped} records.");
+                        writer.Flush();
+                    }
+                }
                 catch (IOException) { Close(writer); writer = null; }
             }
         }

@@ -11,21 +11,13 @@ namespace src.utils
         private static readonly ConcurrentDictionary<uint, jSkill_PlayerInfo> playersByKey = [];
         private static jSkill_PlayerInfo[]? playerSnapshot;
 
-        private static readonly Dictionary<nint, uint> keyByController = [];
         private static int cachedKeyMapTick = int.MinValue;
         private static readonly Dictionary<uint, CCSPlayerController> controllerByKey = [];
 
-        public static uint Key(this CCSPlayerController player)
-        {
-            if (keyByController.TryGetValue(player.Handle, out var key)) return key;
-            key = player.EntityHandle.Raw;
-            if (player.Handle != nint.Zero) keyByController[player.Handle] = key;
-            return key;
-        }
+        public static uint Key(this CCSPlayerController player) => player.EntityHandle.Raw;
 
         public static void ResetKeyCache()
         {
-            keyByController.Clear();
             controllerByKey.Clear();
             cachedKeyMapTick = int.MinValue;
             cachedTick = int.MinValue;
@@ -186,7 +178,7 @@ namespace src.utils
             List<jSkill_PlayerInfo> removed = [];
             foreach (var info in playersByKey.Values)
             {
-                if (info.PlayerIndex != playerIndex || info.PlayerKey == currentKey) continue;
+                if (new CHandle<CCSPlayerController>(info.PlayerKey).Index != playerIndex || info.PlayerKey == currentKey) continue;
                 if (playersByKey.TryRemove(info.PlayerKey, out var stale))
                 {
                     removed.Add(stale);
