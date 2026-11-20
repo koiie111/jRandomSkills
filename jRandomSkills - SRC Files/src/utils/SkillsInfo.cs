@@ -51,6 +51,14 @@ namespace src.utils
                     bool populateFailed = false;
                     var present = new HashSet<string>(StringComparer.Ordinal);
 
+                    // Keep customized settings from installations of the earlier skill pack.
+                    if (root != null && !root.Any(entry => (string?)entry["Name"] == nameof(Skills.OpenVisor)) &&
+                        root.OfType<JObject>().FirstOrDefault(entry => (string?)entry["Name"] == "BigHead") is { } oldHead)
+                    {
+                        oldHead["Name"] = nameof(Skills.OpenVisor);
+                        needsRewrite = true;
+                    }
+
                     if (root != null)
                         foreach (var skillObj in root)
                         {

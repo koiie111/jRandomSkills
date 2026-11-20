@@ -149,8 +149,8 @@ namespace src.command
             var skillPlayer = PlayerManager.GetPlayer(targetPlayer);
             if (skillPlayer != null)
             {
-                // Reassigning Big Head must not refill health after its bonus has been spent.
-                if (skillPlayer.Skill != Skills.BigHead || skill.Skill != Skills.BigHead)
+                // Reassigning Open Visor must not refill health after its bonus has been spent.
+                if (skillPlayer.Skill != Skills.OpenVisor || skill.Skill != Skills.OpenVisor)
                     Instance.SkillAction(skillPlayer.Skill.ToString(), "DisableSkill", [targetPlayer]);
                 skillPlayer.Skill = skill.Skill;
                 skillPlayer.SpecialSkill = Skills.None;

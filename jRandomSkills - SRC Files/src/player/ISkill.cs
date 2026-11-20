@@ -217,7 +217,7 @@ public enum Skills
     Adrenaline,
     GlassCannon,
     Partner,
-    BigHead,
+    OpenVisor,
     MicroHead,
     GuidedBullet,
     TurtleShield,

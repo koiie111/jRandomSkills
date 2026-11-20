@@ -5,30 +5,11 @@ using src.utils;
 
 namespace src.player.skills;
 
-public sealed class BigHead : ISkill
-{
-    public static void LoadSkill() => SkillPackPlayers.Register(Skills.BigHead);
-    public static void EnableSkill(CCSPlayerController player) =>
-        HeadScaleState.Apply(player, SkillsInfo.GetValue<float>(Skills.BigHead, "Scale"),
-            Math.Clamp(SkillsInfo.GetValue<int>(Skills.BigHead, "BonusHealth"), 0, 1000));
-    public static void DisableSkill(CCSPlayerController player) => HeadScaleState.Remove(player.Key());
-    public static void PlayerDisconnect(uint key) => HeadScaleState.Remove(key);
-    public static void PlayerDeath(EventPlayerDeath e) => HeadScaleState.OnDeath(e);
-    public static void RoundEnd() => HeadScaleState.Clear();
-    public static void NewRound() => HeadScaleState.Clear();
-
-    public sealed class SkillConfig() : SkillsInfo.DefaultSkillInfo(Skills.BigHead, color: "#eaaf72")
-    {
-        public float Scale { get; set; } = 1.8f;
-        public int BonusHealth { get; set; } = 40;
-    }
-}
-
 public sealed class MicroHead : ISkill
 {
     public static void LoadSkill() => SkillPackPlayers.Register(Skills.MicroHead);
     public static void EnableSkill(CCSPlayerController player) =>
-        HeadScaleState.Apply(player, SkillsInfo.GetValue<float>(Skills.MicroHead, "Scale"), 0);
+        HeadScaleState.Apply(player, SkillsInfo.GetValue<float>(Skills.MicroHead, "Scale"));
     public static void DisableSkill(CCSPlayerController player) => HeadScaleState.Remove(player.Key());
     public static void PlayerDisconnect(uint key) => HeadScaleState.Remove(key);
     public static void PlayerDeath(EventPlayerDeath e) => HeadScaleState.OnDeath(e);
@@ -47,13 +28,13 @@ internal static class HeadScaleState
     private const string Head = "m_flBigHeadScale";
     private const string Mutators = "m_nActiveMutators";
     private const int BigHeadFlag = 1;
-    private sealed record Applied(CCSPlayerPawn Pawn, uint Handle, float OriginalScale, float Scale, int BaseMaxHealth, int Bonus);
+    private sealed record Applied(CCSPlayerPawn Pawn, uint Handle, float OriginalScale, float Scale);
     private static readonly Dictionary<uint, Applied> active = [];
     private static bool ownsFlag;
     private static int headOffset;
     private static int mutatorOffset;
 
-    internal static void Apply(CCSPlayerController player, float scale, int bonus)
+    internal static void Apply(CCSPlayerController player, float scale)
     {
         if (SkillPackPlayers.LivePawn(player) is not { } pawn ||
             jRandomSkills.Instance.GameRules is not { Handle: not 0 } rules || !float.IsFinite(scale)) return;
@@ -78,29 +59,8 @@ internal static class HeadScaleState
         if (active.Count == 0)
             jRandomSkills.Instance.RegisterListener<Listeners.OnServerPostEntityThink>(RefreshActiveHeads);
         scale = Math.Clamp(scale, 0.25f, 3f);
-        active[key] = new(pawn, pawn.EntityHandle.Raw, Schema.GetRef<float>(pawn.Handle, "CCSPlayerPawn", Head), scale, pawn.MaxHealth, bonus);
+        active[key] = new(pawn, pawn.EntityHandle.Raw, Schema.GetRef<float>(pawn.Handle, "CCSPlayerPawn", Head), scale);
         SetScale(pawn, scale);
-        if (bonus == 0) return;
-        pawn.MaxHealth += bonus;
-        pawn.Health += bonus;
-        NotifyHealth(pawn);
-    }
-
-    internal static HookResult OnSpawn(EventPlayerSpawn e, GameEventInfo info)
-    {
-        var player = PlayerManager.GetPlayerEvent(e.Userid);
-        var skill = PlayerManager.GetPlayer(player)?.Skill;
-        if (player != null && skill is Skills.BigHead or Skills.MicroHead)
-        {
-            uint key = player.Key();
-            Server.NextFrame(() =>
-            {
-                var spawned = PlayerManager.GetController(key);
-                if (spawned != null && PlayerManager.GetPlayer(spawned)?.Skill == skill)
-                    jRandomSkills.Instance.SkillAction(skill.Value.ToString(), "EnableSkill", [spawned]);
-            });
-        }
-        return HookResult.Continue;
     }
 
     internal static void OnDeath(EventPlayerDeath e)
@@ -114,17 +74,7 @@ internal static class HeadScaleState
         if (!active.Remove(key, out var saved)) return;
         var pawn = saved.Pawn;
         if (pawn.IsValid && pawn.EntityHandle.Raw == saved.Handle)
-        {
             SetScale(pawn, saved.OriginalScale);
-            if (saved.Bonus > 0)
-            {
-                int remainingBonus = Math.Clamp(pawn.MaxHealth - saved.BaseMaxHealth, 0, saved.Bonus);
-                pawn.MaxHealth -= remainingBonus;
-                if (pawn.Health > 0)
-                    pawn.Health = Math.Clamp(pawn.Health - remainingBonus, 1, pawn.MaxHealth);
-                NotifyHealth(pawn);
-            }
-        }
 
         if (active.Count != 0) return;
         jRandomSkills.Instance.RemoveListener<Listeners.OnServerPostEntityThink>(RefreshActiveHeads);
@@ -160,10 +110,4 @@ internal static class HeadScaleState
 
     private static void NotifyRules(CCSGameRules rules) =>
         NativeAPI.SchemaNetworkStateChanged(rules.__m_pChainEntity.Handle, (uint)mutatorOffset, uint.MaxValue, uint.MaxValue);
-
-    private static void NotifyHealth(CCSPlayerPawn pawn)
-    {
-        Utilities.SetStateChanged(pawn, "CBaseEntity", "m_iMaxHealth");
-        Utilities.SetStateChanged(pawn, "CBaseEntity", "m_iHealth");
-    }
 }
