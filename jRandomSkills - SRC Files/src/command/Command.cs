@@ -224,34 +224,32 @@ namespace src.command
         private static void Command_ChangeMap(CCSPlayerController? player, CommandInfo command)
         {
             Debug.WriteToDebug($"Player {player?.PlayerName} used the css_map {command.ArgString} command.");
-            if (player != null && player.IsValid)
-                if (!string.IsNullOrEmpty(config.VotingCommands.ChangeMapCommand.Permissions) && !AdminManager.PlayerHasPermissions(player, config.VotingCommands.ChangeMapCommand.Permissions))
-                {
-                    if (!config.VotingCommands.ChangeMapCommand.EnableVoting) return;
-                    player.Vote(VoteType.ChangeMap, command.ArgString);
-                    return;
-                }
-            ChangeMap(command);
-        }
-
-        private static void ChangeMap(CommandInfo command)
-        {
             string map = command.GetArg(1).ToLowerInvariant();
-
-            if (string.IsNullOrEmpty(map))
+            bool workshop = ulong.TryParse(map, System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out ulong workshopId);
+            if (workshop)
+                map = workshopId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            else if (map.Length == 0 || !map.All(c => char.IsAsciiLetterOrDigit(c) || c is '_' or '-' or '/' or '.')
+                || !Server.IsMapValid(map))
             {
-                command.ReplyToCommand($" {ChatColors.Red}{command.CallingPlayer?.GetTranslationWithoutIlliterate("invalid_map")}");
+                command.ReplyToCommand(player?.GetTranslationWithoutIlliterate("invalid_map")
+                    ?? Localization.GetTranslationWithoutIlliterate("invalid_map"));
                 return;
             }
 
-            Localization.PrintTranslationToChatAll($" {ChatColors.Yellow}{{0}} ({ChatColors.Green}{map}{ChatColors.Yellow})...", ["loading_map"], false);
+            if (player is { IsValid: true } && !string.IsNullOrEmpty(config.VotingCommands.ChangeMapCommand.Permissions)
+                && !AdminManager.PlayerHasPermissions(player, config.VotingCommands.ChangeMapCommand.Permissions))
+            {
+                if (config.VotingCommands.ChangeMapCommand.EnableVoting) player.Vote(VoteType.ChangeMap, config.VotingCommands.ChangeMapCommand, () => ChangeMap(map, workshop), map);
+                return;
+            }
+            ChangeMap(map, workshop);
+        }
 
-            if (uint.TryParse(map, out _))
-                Server.ExecuteCommand($"host_workshop_map {map}");
-            else if (!Server.IsMapValid(map))
-                command.ReplyToCommand($" {ChatColors.Red}{command.CallingPlayer?.GetTranslationWithoutIlliterate("invalid_map")}");
-            else
-                Server.ExecuteCommand($"changelevel {map}");
+        private static void ChangeMap(string map, bool workshop)
+        {
+            Localization.PrintTranslationToChatAll($" {ChatColors.Yellow}{{0}} ({ChatColors.Green}{map}{ChatColors.Yellow})...", ["loading_map"], false);
+            Server.ExecuteCommand(workshop ? $"host_workshop_map {map}" : $"changelevel {map}");
         }
 
         [CommandHelper(minArgs: 0, whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]
@@ -262,17 +260,15 @@ namespace src.command
                 if (!string.IsNullOrEmpty(config.VotingCommands.StartGameCommand.Permissions) && !AdminManager.PlayerHasPermissions(player, config.VotingCommands.StartGameCommand.Permissions))
                 {
                     if (!config.VotingCommands.StartGameCommand.EnableVoting) return;
-                    player.Vote(VoteType.StartGame);
+                    player.Vote(VoteType.StartGame, config.VotingCommands.StartGameCommand, () => StartGame(false));
                     return;
                 }
-            StartGame(command);
+            StartGame(command.GetArg(1) == "sv");
         }
 
-        private static void StartGame(CommandInfo command)
+        private static void StartGame(bool cheats)
         {
-            int cheats = command.GetArg(1) == "sv" ? 1 : 0;
-
-            foreach (string consoleCommand in cheats == 1
+            foreach (string consoleCommand in cheats
                                 ? Config.LoadedConfig.VotingCommands.StartGameCommand.SVStartParams.Split(";")
                                 : Config.LoadedConfig.VotingCommands.StartGameCommand.StartParams.Split(";"))
                 Server.ExecuteCommand(consoleCommand);
@@ -297,7 +293,7 @@ namespace src.command
                 if (!string.IsNullOrEmpty(config.VotingCommands.SwapCommand.Permissions) && !AdminManager.PlayerHasPermissions(player, config.VotingCommands.SwapCommand.Permissions))
                 {
                     if (!config.VotingCommands.SwapCommand.EnableVoting) return;
-                    player.Vote(VoteType.SwapTeam);
+                    player.Vote(VoteType.SwapTeam, config.VotingCommands.SwapCommand, Swap);
                     return;
                 }
             Swap();
@@ -319,7 +315,7 @@ namespace src.command
                 if (!string.IsNullOrEmpty(config.VotingCommands.ShuffleCommand.Permissions) && !AdminManager.PlayerHasPermissions(player, config.VotingCommands.ShuffleCommand.Permissions))
                 {
                     if (!config.VotingCommands.ShuffleCommand.EnableVoting) return;
-                    player.Vote(VoteType.ShuffleTeam);
+                    player.Vote(VoteType.ShuffleTeam, config.VotingCommands.ShuffleCommand, Shuffle);
                     return;
                 }
             Shuffle();
@@ -346,7 +342,7 @@ namespace src.command
                 if (!string.IsNullOrEmpty(config.VotingCommands.PauseCommand.Permissions) && !AdminManager.PlayerHasPermissions(player, config.VotingCommands.PauseCommand.Permissions))
                 {
                     if (!config.VotingCommands.PauseCommand.EnableVoting) return;
-                    player.Vote(VoteType.PauseGame);
+                    player.Vote(VoteType.PauseGame, config.VotingCommands.PauseCommand, Pause);
                     return;
                 }
             Pause();
@@ -457,26 +453,19 @@ namespace src.command
         private static void Command_SetScore(CCSPlayerController? player, CommandInfo command)
         {
             Debug.WriteToDebug($"Player {player?.PlayerName} used the css_setscore {command.ArgString} command.");
-            if (player != null && player.IsValid)
-                if (!string.IsNullOrEmpty(config.VotingCommands.SetScoreCommand.Permissions) && !AdminManager.PlayerHasPermissions(player, config.VotingCommands.SetScoreCommand.Permissions))
-                {
-                    if (!config.VotingCommands.SetScoreCommand.EnableVoting) return;
-                    player.Vote(VoteType.SetScore, command.ArgString);
-                    return;
-                }
-            SetScore(player, command);
-        }
-
-        private static void SetScore(CCSPlayerController? player, CommandInfo command)
-        {
-            if (!int.TryParse(command.GetArg(1), out int ctScore) || !int.TryParse(command.GetArg(2), out int tScore))
+            if (!short.TryParse(command.GetArg(1), out short ctScore) || !short.TryParse(command.GetArg(2), out short tScore))
             {
-                if (player != null && player.IsValid)
-                    SkillUtils.PrintToChat(player, player.GetTranslationWithoutIlliterate("correct_form_setscore"));
+                command.ReplyToCommand(player?.GetTranslationWithoutIlliterate("correct_form_setscore")
+                    ?? Localization.GetTranslationWithoutIlliterate("correct_form_setscore"));
                 return;
             }
-
-            SkillUtils.SetTeamScores((short)ctScore, (short)tScore, RoundEndReason.RoundDraw);
+            if (player is { IsValid: true } && !string.IsNullOrEmpty(config.VotingCommands.SetScoreCommand.Permissions)
+                && !AdminManager.PlayerHasPermissions(player, config.VotingCommands.SetScoreCommand.Permissions))
+            {
+                if (config.VotingCommands.SetScoreCommand.EnableVoting) player.Vote(VoteType.SetScore, config.VotingCommands.SetScoreCommand, () => SkillUtils.SetTeamScores(ctScore, tScore, RoundEndReason.RoundDraw), $"{ctScore} {tScore}");
+                return;
+            }
+            SkillUtils.SetTeamScores(ctScore, tScore, RoundEndReason.RoundDraw);
         }
 
         [CommandHelper(minArgs: 1, whoCanExecute: CommandUsage.CLIENT_AND_SERVER)]

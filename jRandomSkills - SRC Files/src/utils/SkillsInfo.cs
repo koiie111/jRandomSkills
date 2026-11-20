@@ -80,7 +80,7 @@ namespace src.utils
                                 if (HasMissingKeys(current, instance)) needsRewrite = true;
 
                                 // Update the old Guided Bullet defaults while preserving other configured values.
-                                if (name == nameof(Skills.GuidedBullet))
+                                if (name == nameof(Skills.GuidedBullet) && current[nameof(player.skills.GuidedBullet.SkillConfig.DefaultsVersion)] == null)
                                 {
                                     if (current["Duration"] is JValue duration
                                         && duration.Type is JTokenType.Integer or JTokenType.Float

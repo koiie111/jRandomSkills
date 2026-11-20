@@ -286,6 +286,7 @@ public sealed class GuidedBullet : ISkill
     public sealed class SkillConfig() : SkillsInfo.DefaultSkillInfo(Skills.GuidedBullet, color: "#ffd65e",
         disableOnFreezeTime: true, maxPerServer: 2, rarity: src.utils.Rarity.Rare)
     {
+        public int DefaultsVersion { get; set; } = 1;
         public float Duration { get; set; } = DefaultDuration;
         public float Speed { get; set; } = DefaultSpeed;
         public int Damage { get; set; } = 75;

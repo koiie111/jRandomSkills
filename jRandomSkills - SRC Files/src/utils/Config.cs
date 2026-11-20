@@ -168,7 +168,6 @@ namespace src.utils
             public bool DisplayAlwaysDescription { get; set; }
             public bool DisableSpectateHUD { get; set; }
             public bool HideHudForOtherPlugins { get; set; }
-            public bool EnableFlashingHtmlHudFix { get; set; }
             public bool TraceRayBeam { get; set; }
             public string DisableHUDOnDeathPermission { get; set; }
             public bool DisableSkillsOnRoundEnd { get; set; }
@@ -204,7 +203,6 @@ namespace src.utils
                 SkillHudDuration = -1;
                 SkillDescriptionDuration = 7;
                 DisplayAlwaysDescription = false;
-                EnableFlashingHtmlHudFix = false;
                 TraceRayBeam = false;
                 DisableSpectateHUD = false;
                 HideHudForOtherPlugins = true;
@@ -429,17 +427,10 @@ namespace src.utils
         }
 
         public class StartGameCommand(bool enableVoting, string alias, string permissions, string startParams, string svStartParams, float timeToVote, float percentagesToSuccess, float timeToNextVoting, float timeToNextSameVoting, int minimumPlayersToStartVoting)
+            : VotingCommand(enableVoting, alias, permissions, timeToVote, percentagesToSuccess, timeToNextVoting, timeToNextSameVoting, minimumPlayersToStartVoting)
         {
-            public bool EnableVoting { get; set; } = enableVoting;
-            public string Alias { get; set; } = alias;
-            public string Permissions { get; set; } = permissions;
             public string StartParams { get; set; } = startParams;
             public string SVStartParams { get; set; } = svStartParams;
-            public float TimeToVote { get; set; } = timeToVote;
-            public float PercentagesToSuccess { get; set; } = percentagesToSuccess;
-            public float TimeToNextVoting { get; set; } = timeToNextVoting;
-            public float TimeToNextSameVoting { get; set; } = timeToNextSameVoting;
-            public int MinimumPlayersToStartVoting { get; set; } = minimumPlayersToStartVoting;
         }
 
         public class VotingCommands

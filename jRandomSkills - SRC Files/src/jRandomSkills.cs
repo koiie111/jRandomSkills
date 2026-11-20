@@ -271,10 +271,7 @@ namespace src
             Console.ForegroundColor = (ConsoleColor)CS2ConsoleColors.LightBlue;
             Console.Write(Config.LoadedConfig.SkillHudDuration == -1 ? "infinity" : Config.LoadedConfig.SkillHudDuration);
 
-            Console.ForegroundColor = (ConsoleColor)CS2ConsoleColors.Cyan;
-            Console.Write(", HtmlHudFix: ");
-            Console.ForegroundColor = (ConsoleColor)CS2ConsoleColors.LightBlue;
-            Console.WriteLine(Config.LoadedConfig.EnableFlashingHtmlHudFix);
+            Console.WriteLine();
 
             // Dependences
             Console.ForegroundColor = (ConsoleColor)CS2ConsoleColors.Cyan;
@@ -430,6 +427,7 @@ namespace src
 
         public static void Invalidate()
         {
+            menu.Menu.InvalidateCatalogs();
             _bySkill = null;
             _snapshot = null;
         }

@@ -225,6 +225,8 @@ namespace src.player
 
         public static void OnMapChange()
         {
+            src.command.VoteSystem.OnMapChange();
+            summaryRoundStarted = false;
             lock (setLock)
             {
                 isTransmitRegistered = false;
@@ -495,6 +497,13 @@ namespace src.player
                 : DateTime.Now.AddSeconds(skillDescriptionHudExpired.Value);
         }
 
+        private static void AnnounceOwnSkill(CCSPlayerController player, jSkill_SkillInfo skill, jSkill_PlayerInfo info)
+        {
+            if (player.IsBot || !skill.Display || !Config.LoadedConfig.YourSkillChatInfo || !Config.LoadedConfig.ChatMessage.InfoMessageShow) return;
+            string name = player.GetSkillName(skill.Skill, info.SkillChance);
+            player.PrintToChat($" {ChatColors.DarkRed}{name}{ChatColors.Lime}: {Hud.Description(player, skill.Skill, info.SkillChance)}");
+        }
+
         private static int CountConnectedPlayers()
         {
             try
@@ -684,9 +693,10 @@ namespace src.player
 
                     Debug.WriteToDebug($"Player {skillPlayer.PlayerName} has got the skill \"{SkillNames.Get(randomSkill.Skill)}\".", DebugCategory.Skill);
                     UpdateSkillHudExpired(skillPlayer, randomSkill.Skill);
+                    AnnounceOwnSkill(player, randomSkill, skillPlayer);
                     assigned++;
 
-                    if (Config.LoadedConfig.TeamMateSkillChatInfo && !player.IsBot)
+                    if (Config.LoadedConfig.TeamMateSkillChatInfo && Config.LoadedConfig.ChatMessage.InfoMessageShow && !player.IsBot)
                     {
                         chatTeams ??= validPlayers.Where(p => p.IsValid).ToLookup(p => p.Team, p => p.Key());
                         var team = player.Team;
@@ -706,7 +716,8 @@ namespace src.player
 
                                 var skill = SkillData.GetInfo(info.Skill);
                                 string name = skill == null ? recipient.GetSkillName(Skills.None) : recipient.GetSkillName(skill.Skill, info.SkillChance);
-                                SkillUtils.PrintToChat(recipient, $" {ChatColors.DarkRed}\u202A{teammate.PlayerName}\u202C{ChatColors.Lime}: {name}");
+                                string line = $" {ChatColors.DarkRed}\u202A{teammate.PlayerName}\u202C{ChatColors.Lime}: {name}";
+                                recipient.PrintToChat(Illiterate.CheckIlliterateSkill(recipient) ? Illiterate.GetRandomText(line)! : line);
                             }
 
                         }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
@@ -845,6 +856,7 @@ namespace src.player
 
                 Debug.WriteToDebug($"Player {skillPlayer.PlayerName} has got the skill \"{SkillNames.Get(randomSkill.Skill)}\".", DebugCategory.Skill);
                 UpdateSkillHudExpired(skillPlayer, randomSkill.Skill);
+                AnnounceOwnSkill(player, randomSkill, skillPlayer);
             }
         }
 

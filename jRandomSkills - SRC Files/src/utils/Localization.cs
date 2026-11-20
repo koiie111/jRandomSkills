@@ -194,17 +194,16 @@ namespace src.utils
                 if (key == null)
                 {
                     player.Notify(message);
-                    return;
+                    continue;
                 }
 
-                ConcurrentBag<string> translations = [];
+                string[] translations = new string[key.Length];
                 for (int i = 0; i < key.Length; i++)
                 {
                     object[] currentArgs = args != null && i < args.Length ? args[i] : [];
-                    string translation = GetTranslation(key[i], langCode, null, useIlliterate, currentArgs);
-                    translations.Add(translation);
+                    translations[i] = GetTranslation(key[i], langCode, player, useIlliterate, currentArgs);
                 }
-                player.Notify(string.Format(message, [.. translations]));
+                player.Notify(string.Format(message, translations));
             }
         }
 

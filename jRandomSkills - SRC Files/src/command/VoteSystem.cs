@@ -11,6 +11,9 @@ namespace src.command
     {
         private static readonly ConcurrentDictionary<VoteData, byte> votes = [];
 
+        // Map changes cancel the associated timers, including the timer that removes each vote.
+        internal static void OnMapChange() => votes.Clear();
+
         private static void StartVoteTimer(VoteData vote, string commandName)
         {
             vote.ActiveTimer?.Kill();
@@ -20,32 +23,31 @@ namespace src.command
                 if (!votes.ContainsKey(vote) || !vote.GetActive()) return;
 
                 vote.SetActive(false);
-                vote.TimeToNextSameVoting = vote.TimeToNextVoting;
                 Localization.PrintTranslationToChatAll($" {ChatColors.Red}{{0}}", ["vote_timeout"], false, [commandName]);
             }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
         }
 
-        private static VoteData? CreateVote(VoteType voteType, string? args = null)
+        private static VoteData? CreateVote(VoteType voteType, Config.VotingCommand settings, Action onSuccess, string? args)
         {
-            var vote = new VoteData(10,
-                () => {
-                    Server.ExecuteCommand($"{VoteTypeCommands.GetCommand(voteType)}{(!string.IsNullOrEmpty(args) ? $" {args}" : "")}");
-                }, 60, 2, 5, 2, voteType, args);
+            var vote = new VoteData(settings.TimeToVote, onSuccess, settings.PercentagesToSuccess,
+                settings.TimeToNextVoting, settings.TimeToNextSameVoting, settings.MinimumPlayersToStartVoting, voteType, args);
+            string alias = settings.Alias.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
+                ?? VoteTypeCommands.GetCommand(voteType)[4..];
+            vote.DisplayCommand = $"!{alias}{(string.IsNullOrEmpty(args) ? "" : $" {args}")}";
 
-            if (vote.MinimumPlayersToStartVoting > Utilities.GetPlayers().Count(p => !p.IsBot))
+            if (vote.MinimumPlayersToStartVoting > Utilities.GetPlayers().Count(p => !p.IsBot && !p.IsHLTV))
                 return null;
 
             votes.TryAdd(vote, 0);
-            string commandName = $"!{VoteTypeCommands.GetCommand(vote.Type)?.Replace("css_", "")}{(!string.IsNullOrEmpty(vote?.Args) ? $" {vote?.Args}" : "")}";
 
-            Localization.PrintTranslationToChatAll($" {ChatColors.Lime}{{0}}", ["vote_started"], false, [commandName + "  ·  !skillvote"]);
+            Localization.PrintTranslationToChatAll($" {ChatColors.Lime}{{0}}", ["vote_started"], false, [vote.DisplayCommand + "  ·  !skillvote"]);
             foreach (var player in Utilities.GetPlayers())
                 player.EmitSound("UIPanorama.tab_mainmenu_news");
 
-            StartVoteTimer(vote!, commandName);
+            StartVoteTimer(vote, vote.DisplayCommand);
 
-            float[] times = [vote!.TimeToVote, vote.TimeToVote + vote.TimeToNextVoting, vote.TimeToVote + vote.TimeToNextSameVoting];
-            jRandomSkills.Instance.AddTimer(times.Max(), () =>
+            float retention = vote.TimeToVote + Math.Max(0f, Math.Max(vote.TimeToNextVoting, vote.TimeToNextSameVoting));
+            jRandomSkills.Instance.AddTimer(retention, () =>
             {
                 if (!votes.ContainsKey(vote)) return;
                 votes.TryRemove(vote, out _);
@@ -54,7 +56,7 @@ namespace src.command
             return vote;
         }
 
-        public static void Vote(this CCSPlayerController player, VoteType voteType, string? args = null)
+        public static void Vote(this CCSPlayerController player, VoteType voteType, Config.VotingCommand settings, Action onSuccess, string? args = null)
         {
             var vote = votes.Keys.FirstOrDefault(v => v.Type == voteType && v.Args == args && v.GetActive());
             if (vote == null)
@@ -70,7 +72,7 @@ namespace src.command
                     return;
                 }
 
-                vote = CreateVote(voteType, args);
+                vote = CreateVote(voteType, settings, onSuccess, args);
             }
 
             if (vote == null)
@@ -79,6 +81,11 @@ namespace src.command
                 return;
             }
 
+            CastVote(player, vote);
+        }
+
+        private static void CastVote(CCSPlayerController player, VoteData vote)
+        {
             if (!vote.PlayersVoted.TryAdd(player.SteamID, 0))
                 player.Notify($" {ChatColors.Red}{player.GetTranslationWithoutIlliterate("vote_alredy_voted")}");
             else CheckVote(vote);
@@ -93,32 +100,29 @@ namespace src.command
                 player.Notify(player.GetTranslationWithoutIlliterate("jrs_vote_empty"));
                 return;
             }
-            string command = VoteTypeCommands.GetCommand(vote.Type);
             Hud.OpenMenu(player, player.GetTranslationWithoutIlliterate("jrs_vote_title"),
                 [new(player.GetTranslationWithoutIlliterate("jrs_vote_yes"), p =>
                 {
-                    Hud.DismissMenu(p);
+                    Hud.DismissMenu(p, preservePicker: true);
                     if (!vote.GetActive() || !votes.ContainsKey(vote)) return;
-                    if (vote.PlayersVoted.TryAdd(p.SteamID, 0)) CheckVote(vote);
-                })], $"{command} {vote.Args}");
+                    CastVote(p, vote);
+                })], vote.DisplayCommand);
         }
 
         private static void CheckVote(VoteData vote)
         {
             int voted = vote.PlayersVoted.Count;
-            int playerCount = Utilities.GetPlayers().Count(p => !p.IsBot);
+            int playerCount = Utilities.GetPlayers().Count(p => !p.IsBot && !p.IsHLTV);
             int playersNeeded = (int)Math.Ceiling(playerCount * (vote.PercentagesToSuccess / 100f));
-            string commandName = $"!{VoteTypeCommands.GetCommand(vote.Type)?.Replace("css_", "")}{(!string.IsNullOrEmpty(vote?.Args) ? $" {vote?.Args}" : "")}";
 
             if (voted >= playersNeeded)
             {
-                vote!.ActiveTimer?.Kill();
-                vote.SuccessAction.Invoke();
+                vote.ActiveTimer?.Kill();
                 vote.SetActive(false);
+                vote.SuccessAction.Invoke();
             }
             else
             {
-                StartVoteTimer(vote!, commandName);
                 Localization.PrintTranslationToChatAll($" {ChatColors.Yellow}{{0}} '': {ChatColors.Green}{voted}/{playersNeeded}", ["vote_vote"], false);
             }
         }
@@ -143,6 +147,8 @@ namespace src.command
         {
             Active = active;
         }
+
+        public string DisplayCommand { get; set; } = "";
 
         public bool GetActive()
         {

@@ -2663,6 +2663,7 @@
   },
   {
     "Duration": 8.0,
+    "DefaultsVersion": 1,
     "Speed": 550.0,
     "Damage": 75,
     "NeedsTeammates": false,

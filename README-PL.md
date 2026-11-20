@@ -226,7 +226,7 @@ Kupujesz serwer na pukawce? Skorzystaj z mojego [kodu polecającego](https://puk
     - Pobierz [CounterStrikeSharp-With-Runtime](https://github.com/roflmuffin/CounterStrikeSharp/releases)
     - Wypakuj go do folderu `C2Server/game/csgo/`
 4. Zainstaluj **jRandomSkills**
-    - Pobierz [jRandomSkills](https://github.com/Juzlus/jRandomSkills/releases)
+    - Zainstaluj pliki serwera z tej wersji i udostępnij skompilowane zasoby Panorama każdemu klientowi. Zobacz [instalację HUD i konfigurację MySQL](./addon/README.md).
 
 ## </> Komendy Serwerowe
 > [!TIP]
@@ -306,21 +306,13 @@ Wszystkie sypermoce można dostosować w pliku **`config.cfg`** / **`skillsInfo.
                                          // 4 - Damage
                                          // Przykład: '123' włącza logowanie: Skill, Round i Entity
         "PerfMode": false,               // Zapisuje pomiary wydajności pluginu do folderu logs
-        "AlternativeSkillButton": null,  // Możliwe przyciski:
-                                         // null, "Attack", "Jump", "Duck", "Forward", "Back",
-                                         // "Use", "Cancel", "Left", "Right", "Moveleft",
-                                         // "Moveright", "Attack2", "Run", "Reload", "Alt1",
-                                         // "Alt2", "Speed", "Walk", "Zoom", "Weapon1",
-                                         // "Weapon2", "Bullrush", "Grenade1", "Grenade2",
-                                         // "Attack3", "Scoreboard", "Inspect"
+        "HudMySqlConnectionString": null, // Opcjonalne połączenie MySQL do zapisu potwierdzenia instrukcji
         "SkillTimeBeforeStart": 7.0,     // Ile sekund przed końcem freeze time należy zakończyć 
                                          // losowanie umiejętności? (freezetime - SkillTimeBeforeStart)
         "SkillHudDuration": -1.0,        // Jak długo HUD HTML powinien być widoczny?
         "SkillDescriptionDuration": 7.0, // Jak długo opis umiejętności powinien być widoczny?
         "DisplayAlwaysDescription":false,// Zawsze wyświetlaj opis umiejętności
         "DisableSpectateHUD": false,     // Wyłącz HUD HTML bedąc martwym
-        "HideHudForOtherPlugins": true,  // Automatycznie ukrywa HUD gdy używa go inny plugin
-        "EnableFlashingHtmlHudFix": false,// Włącz FlashingHtmlHudFix
         "TraceRayBeam": false,           // Włącz widoczność ścieżki dla 'Długi Nóż', 'Długi Zeus'
         "DisableHUDOnDeathPermission": "@jRandomSkills/death",  // Wyłącz HUD po śmierci dla graczy z tym uprawnieniem
         "DisableSkillsOnRoundEnd": false,// Wyłącz wszystkie umiejętności na koniec rundy (gdy widoczne jest podsumowanie)
@@ -348,12 +340,6 @@ Wszystkie sypermoce można dostosować w pliku **`config.cfg`** / **`skillsInfo.
             "LanguageInfos": [...]       // Ustawienie zmiany języków ISO na tłumaczenia
         },
 
-        "HtmlHudCustomisation": {        // Ustawienia zmiany kolorów i rozmiarów czcionek
-                                         // xxxl: 64px, xxl: 40px, xl: 32px
-                                         // l: 24px, ml: 20px, m: 18px
-            ...                          // sm: 16px, s: 12px, xs: 8px
-            "WSADMenuVisibleItems": 3    // Liczba widocznych wierszy
-        }
         ...
     },
 ```

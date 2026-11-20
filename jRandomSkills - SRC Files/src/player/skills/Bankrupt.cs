@@ -45,8 +45,7 @@ namespace src.player.skills
                     menuItems.Add(($"\u202A{e.PlayerName}\u202C : {money}$", e.Key().ToString()));
                 }
 
-                if (!menuItems.IsEmpty)
-                    SkillUtils.UpdateMenu(player, menuItems);
+                SkillUtils.UpdateMenu(player, menuItems);
             }
         }
 
