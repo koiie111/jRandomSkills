@@ -63,7 +63,7 @@ namespace src.player.skills
                     var observerTarget = player.Pawn?.Value?.ObserverServices?.ObserverTarget?.Value?.Handle ?? nint.Zero;
                     if (observerTarget == nint.Zero) continue;
 
-                    var observed = PlayerManager.GetControllerByPawn(observerTarget);
+                    var observed = PlayerManager.GetControllerByPawn(observerTarget, preferFirst: true);
                     if (PlayerManager.GetPlayer(observed)?.Skill != skillName) continue;
                 }
 

@@ -80,6 +80,7 @@ namespace src.utils
 
         private static int cachedPawnMapTick = int.MinValue;
         private static readonly Dictionary<nint, CCSPlayerController> controllersByPawn = [];
+        private static readonly Dictionary<nint, CCSPlayerController> firstControllerBySharedPawn = [];
 
         private static int cachedBotMapTick = int.MinValue;
         private static readonly Dictionary<nint, CCSPlayerController> botsByController = [];
@@ -255,7 +256,7 @@ namespace src.utils
             return tickPlayerHandles.Contains(original.Handle) ? original : player;
         }
 
-        public static CCSPlayerController? GetControllerByPawn(nint pawnHandle)
+        public static CCSPlayerController? GetControllerByPawn(nint pawnHandle, bool preferFirst = false)
         {
             if (pawnHandle == nint.Zero) return null;
 
@@ -264,16 +265,23 @@ namespace src.utils
             {
                 cachedPawnMapTick = tick;
                 controllersByPawn.Clear();
+                firstControllerBySharedPawn.Clear();
 
                 foreach (var player in GetTickPlayers())
                 {
                     if (player == null || !player.IsValid) continue;
 
                     var handle = player.Pawn?.Value?.Handle;
-                    if (handle != null && handle.Value != nint.Zero)
-                        controllersByPawn.TryAdd(handle.Value, player);
+                    if (handle == null || handle.Value == nint.Zero) continue;
+                    if (controllersByPawn.TryGetValue(handle.Value, out var previous))
+                        firstControllerBySharedPawn.TryAdd(handle.Value, previous);
+                    controllersByPawn[handle.Value] = player;
                 }
             }
+
+            // Glaz previously kept the first controller for a pawn. The HUD used the last.
+            if (preferFirst && firstControllerBySharedPawn.TryGetValue(pawnHandle, out var first))
+                return first;
 
             return controllersByPawn.TryGetValue(pawnHandle, out var controller) ? controller : null;
         }
