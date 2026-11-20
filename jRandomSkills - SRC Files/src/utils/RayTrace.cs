@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 using jRandomSkills.src.utils;
@@ -11,6 +11,8 @@ namespace src.utils
     public static class RayTrace
     {
 
+        private static readonly Vector TraceMins = new(-0.5f, -0.5f, -0.5f);
+        private static readonly Vector TraceMaxs = new(0.5f, 0.5f, 0.5f);
         private static bool traceFailureLogged;
         
         public static bool IsAvailable => true;
@@ -38,7 +40,7 @@ namespace src.utils
             }
         }
 
-        public static CustomTraceResult? TraceShape(CCSPlayerController player, Vector startPos, Vector endPos, ulong? mask = null, ulong? contents = null)
+        public static CustomTraceResult? TraceShape(CCSPlayerController player, Vector startPos, Vector endPos, ulong? mask = null, ulong? contents = null, bool allowDebugBeam = true)
         {
             if (player == null || !player.IsValid) return null;
 
@@ -70,12 +72,9 @@ namespace src.utils
             }
             contents ??= 0;
 
-            bool drawBeam = Config.LoadedConfig.TraceRayBeam;
+            bool drawBeam = allowDebugBeam && Config.LoadedConfig.TraceRayBeam;
 
-            Vector mins = new(-0.5f, -0.5f, -0.5f);
-            Vector maxs = new(0.5f, 0.5f, 0.5f);
-
-            if (!TryTraceHull(startPos, endPos, mins, maxs, playerPawn, (ulong)mask, (ulong)contents, out var result))
+            if (!TryTraceHull(startPos, endPos, TraceMins, TraceMaxs, playerPawn, (ulong)mask, (ulong)contents, out var result))
                 return null;
 
             var traced = new CustomTraceResult(result, startPos, (ulong)mask, (ulong)contents, drawBeam);

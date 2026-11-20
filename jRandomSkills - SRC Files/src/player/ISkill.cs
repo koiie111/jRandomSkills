@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API.Core;
+using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes;
 using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.UserMessages;
@@ -217,4 +217,14 @@ public enum Skills
     Adrenaline,
     GlassCannon,
     Partner,
+    OpenVisor,
+    // Keep the numeric IDs of skills introduced after the retired slot.
+    GuidedBullet = OpenVisor + 2,
+    TurtleShield,
+    FalseFootsteps,
+    HotPotato,
+    LastCartridge,
+    FieldDressing,
+    BoobyTrappedGun,
+    AirPause,
 }

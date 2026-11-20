@@ -231,7 +231,15 @@ namespace src.utils
         public static string GetTranslation(string key, string? langCode = null, CCSPlayerController? player = null, bool useIlliterate = true, params object[] args)
         {
             langCode ??= defaultLangCode;
-            if (_translations.TryGetValue(langCode, out var langDict) && langDict.TryGetValue(key, out var translation))
+            bool TryLookup(string code, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? value)
+            {
+                value = null;
+                return _translations.TryGetValue(code, out var dict) && dict.TryGetValue(key, out value);
+            }
+
+            if (TryLookup(langCode, out var translation) ||
+                (langCode != defaultLangCode && TryLookup(defaultLangCode, out translation)) ||
+                (langCode != "en" && defaultLangCode != "en" && TryLookup("en", out translation)))
                 if (args.Length != 0 && args[0].ToString() == "welcome")
                     return translation;
                 else
@@ -243,8 +251,6 @@ namespace src.utils
                     return output;
                 }
 
-            if (langCode != defaultLangCode)
-                return GetTranslation(key, null, player, useIlliterate, args);
             return key;
         }
 

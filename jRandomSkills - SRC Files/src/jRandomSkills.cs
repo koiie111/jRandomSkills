@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Commands;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -70,6 +70,7 @@ namespace src
             }
             src.player.skills.Adrenaline.NewRound();
             src.player.skills.HomingNades.RestoreFuses();
+            src.player.skills.SkillPackPlayers.ClearRound();
             Event.Unload();
             Debug.Unload();
             PerfLog.Unload();

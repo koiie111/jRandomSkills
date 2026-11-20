@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Admin;
 using CounterStrikeSharp.API.Modules.Commands;
@@ -149,7 +149,9 @@ namespace src.command
             var skillPlayer = PlayerManager.GetPlayer(targetPlayer);
             if (skillPlayer != null)
             {
-                Instance.SkillAction(skillPlayer.Skill.ToString(), "DisableSkill", [targetPlayer]);
+                // Reassigning Open Visor must not refill health after its bonus has been spent.
+                if (skillPlayer.Skill != Skills.OpenVisor || skill.Skill != Skills.OpenVisor)
+                    Instance.SkillAction(skillPlayer.Skill.ToString(), "DisableSkill", [targetPlayer]);
                 skillPlayer.Skill = skill.Skill;
                 skillPlayer.SpecialSkill = Skills.None;
                 Instance.SkillAction(skill.Skill.ToString(), "EnableSkill", [targetPlayer]);
