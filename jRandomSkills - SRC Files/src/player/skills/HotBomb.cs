@@ -71,7 +71,7 @@ namespace src.player.skills
             var player = PlayerManager.GetPlayerEvent(@event.Userid);
             if (player == null || !player.IsValid) return;
 
-            player.PrintToCenterAlert(player.GetTranslation("hotbomb_hint"));
+            player.Notify(player.GetTranslation("hotbomb_hint"));
         }
 
         private static void ChangeC4Color(Color color)
@@ -109,7 +109,7 @@ namespace src.player.skills
             {
                 ChangeC4Color(Color.Red);
                 foreach (var enemy in PlayerManager.GetTickPlayers().Where(p => p.IsValid && p.Team == CsTeam.Terrorist && p.PlayerPawn?.Value?.Health > 0))
-                    enemy.PrintToCenterAlert(enemy.GetTranslation("hotbomb_hint"));
+                    enemy.Notify(enemy.GetTranslation("hotbomb_hint"));
             }
 
             players.TryAdd(player.Key(), 0);
@@ -123,7 +123,7 @@ namespace src.player.skills
             {
                 ChangeC4Color(Color.White);
                 foreach (var enemy in PlayerManager.GetTickPlayers().Where(p => p.IsValid && p.Team == CsTeam.Terrorist && p.PlayerPawn?.Value?.Health > 0))
-                    enemy.PrintToCenterAlert(enemy.GetTranslation("hotbomb_disable_info"));
+                    enemy.Notify(enemy.GetTranslation("hotbomb_disable_info"));
             }
         }
 

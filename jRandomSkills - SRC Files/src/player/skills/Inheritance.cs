@@ -91,13 +91,13 @@ namespace src.player.skills
 
             if (commands == null || commands.Length == 0 || !uint.TryParse(commands[0], out uint fallenIndex))
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
             if (!fallen.TryGetValue(fallenIndex, out var fallenInfo) || !CanInherit(player, fallenInfo))
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
@@ -128,6 +128,7 @@ namespace src.player.skills
 
                 targetInfo.Skill = inheritedSkill;
                 targetInfo.SpecialSkill = skillName;
+                targetInfo.HudChoice = new(Name: fallenInfo.PlayerName);
 
                 SkillUtils.CloseMenu(target);
 
@@ -144,7 +145,7 @@ namespace src.player.skills
                     Instance?.SkillAction(inheritedSkill.ToString(), "EnableSkill", [target]);
             }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
 
-            playerEvent.PrintToChat($" {ChatColors.Green}" + playerEvent.GetTranslation("inheritance_player_info", fallenInfo.PlayerName));
+            playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("inheritance_player_info", fallenInfo.PlayerName));
         }
 
         private static void RefreshMenu(CCSPlayerController player)

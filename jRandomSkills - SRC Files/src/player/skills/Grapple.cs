@@ -107,7 +107,7 @@ namespace src.player.skills
             if (!TryAttach(player, skillInfo))
             {
                 if (playerEvent != null && playerEvent.IsValid)
-                    playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("grapple_no_anchor_info"));
+                    playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("grapple_no_anchor_info"));
                 return;
             }
 

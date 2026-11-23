@@ -1,34 +1,29 @@
 using CounterStrikeSharp.API.Core;
-using CounterStrikeSharp.API.Modules.Menu;
-using CounterStrikeSharp.API.Modules.Utils;
-using static src.jRandomSkills;
-using System.Text.RegularExpressions;
 using src.utils;
+using src.player.skills;
+using static src.jRandomSkills;
 
-namespace src.menu
+namespace src.menu;
+
+public static class Menu
 {
-    public static class Menu
-    {
-        public static void DisplaySkillsList(CCSPlayerController player)
-        {
-            CenterHtmlMenu menu = new($"[ ★ {player.GetTranslationWithoutIlliterate("skills_menu")} ★ ]", Instance);
-            
-            foreach (var skillInfo in SkillData.Skills)
-            {
-                string skillName = $"{player.GetSkillName(skillInfo.Skill)}";
-                menu.AddMenuOption($" ★ {skillName}", (player, option) =>
-                {
-                    string selectedSkillName = option.Text;
-                    string pattern = "\\[/?color\\b[^\\]]*\\]";
-                    string cleanSkillName = Regex.Replace(selectedSkillName, pattern, "");
-                    string skillName = cleanSkillName.Replace($" ★ ", "");
-                    string skillDesc = player.GetSkillDescription(skillInfo.Skill);
-                    SkillUtils.PrintToChat(player, $"{ChatColors.DarkRed}{skillName}{ChatColors.Lime}: {skillDesc}", border: "");
-                    MenuManager.CloseActiveMenu(player);
-                });
-            }
+    private static readonly Dictionary<string, Hud.Option[]> catalogs = [];
 
-            MenuManager.OpenCenterHtmlMenu(Instance, player, menu);
+    internal static void InvalidateCatalogs() => catalogs.Clear();
+
+    public static void DisplaySkillsList(CCSPlayerController player)
+    {
+        string language = Localization.GetLangCode(player);
+        bool cacheable = !Illiterate.CheckIlliterateSkill(player);
+        if (!cacheable || !catalogs.TryGetValue(language, out var rows))
+        {
+            rows = SkillData.GetSnapshot()
+                .Where(info => info.Skill != src.player.Skills.None)
+                .Select(info => new Hud.Option(player.GetSkillName(info.Skill), null, Hud.Description(player, info.Skill)))
+                .OrderBy(option => option.Label, StringComparer.CurrentCultureIgnoreCase)
+                .ToArray();
+            if (cacheable) catalogs[language] = rows;
         }
+        Hud.OpenMenu(player, player.GetTranslationWithoutIlliterate("skills_menu"), rows);
     }
 }

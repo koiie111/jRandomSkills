@@ -3,7 +3,6 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 using src.utils;
 using System.Collections.Concurrent;
-using System.Net;
 
 namespace src.player.skills
 {
@@ -11,8 +10,6 @@ namespace src.player.skills
     {
         private const Skills skillName = Skills.Partner;
         private const int Levels = 5;
-        private const char FullBlock = '▓';
-        private const char EmptyBlock = '░';
 
         private sealed class Bond
         {
@@ -21,15 +18,6 @@ namespace src.player.skills
         }
 
         private static readonly ConcurrentDictionary<uint, Bond> bonds = [];
-        private static readonly string[] bars = BuildBars();
-
-        private static string[] BuildBars()
-        {
-            var result = new string[Levels + 1];
-            for (int level = 0; level <= Levels; level++)
-                result[level] = new string(FullBlock, level) + new string(EmptyBlock, Levels - level);
-            return result;
-        }
 
         public static void LoadSkill()
         {
@@ -74,6 +62,7 @@ namespace src.player.skills
             var playerInfo = PlayerManager.GetPlayer(player);
             if (playerInfo == null) return;
             playerInfo.SkillUsed = false;
+            playerInfo.HudChoice = null;
 
             var playerEvent = PlayerManager.GetPlayerFromEvent(player);
             if (playerEvent == null || !playerEvent.IsValid) return;
@@ -85,7 +74,7 @@ namespace src.player.skills
                 SkillUtils.CreateMenu(player, menuItems);
             }
             else
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("partner_no_teammates")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("partner_no_teammates")}");
         }
 
         public static void UseSkill(CCSPlayerController player)
@@ -114,32 +103,33 @@ namespace src.player.skills
 
             if (playerInfo.SkillUsed)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
                 return;
             }
 
             if (commands.Length == 0 || !uint.TryParse(commands[0], out uint partnerKey))
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("partner_no_teammates")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("partner_no_teammates")}");
                 return;
             }
 
             var partner = PlayerManager.GetController(partnerKey);
             if (partner == null || !partner.IsValid || partner.Team != player.Team || partner.Key() == player.Key() || partner.PlayerPawn.Value is not { IsValid: true, Health: > 0 })
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("partner_no_teammates")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("partner_no_teammates")}");
                 return;
             }
 
             bonds[player.Key()] = new Bond { PartnerKey = partner.Key(), NextHealTick = Server.TickCount + SkillsInfo.GetValue<int>(skillName, "tickCooldown") };
             playerInfo.SkillUsed = true;
+            playerInfo.HudChoice = new(Name: partner.PlayerName);
             SkillUtils.CloseMenu(player);
 
-            playerEvent.PrintToChat($" {ChatColors.Green}{playerEvent.GetTranslation("partner_player_info", partner.PlayerName)}");
+            playerEvent.Notify($" {ChatColors.Green}{playerEvent.GetTranslation("partner_player_info", partner.PlayerName)}");
 
             var partnerEvent = PlayerManager.GetPlayerFromEvent(partner);
             if (partnerEvent != null && partnerEvent.IsValid)
-                partnerEvent.PrintToChat($" {ChatColors.Green}{partnerEvent.GetTranslation("partner_teammate_info", player.PlayerName)}");
+                partnerEvent.Notify($" {ChatColors.Green}{partnerEvent.GetTranslation("partner_teammate_info", player.PlayerName)}");
         }
 
         public static void OnTick()
@@ -175,11 +165,8 @@ namespace src.player.skills
                 if (partnerAlive && ownerPawn.AbsOrigin != null && partnerPawn!.AbsOrigin != null)
                     level = LevelFor(ownerPawn.AbsOrigin.Distance(partnerPawn.AbsOrigin), minDistance, maxDistance);
 
-                string name = partner == null ? "?" : WebUtility.HtmlEncode(partner.PlayerName);
-                string color = level >= 4 ? "#3ad15a" : level >= 2 ? "#f2c94c" : level >= 1 ? "#ff8a3d" : "#7a7a7a";
-                ownerInfo.PrintHTML = partnerAlive
-                    ? $"{name}: <font color='{color}'>{bars[level]}</font>"
-                    : $"<font color='#7a7a7a'>{(owner.GetTranslation("partner_dead_info"))}</font>";
+                ownerInfo.PrintHTML = owner.GetTranslation(!partnerAlive ? "partner_dead_info" :
+                    level == 0 ? "jrs_partner_far" : "jrs_partner_near");
 
                 if (level == 0)
                 {
@@ -231,4 +218,3 @@ namespace src.player.skills
         }
     }
 }
-

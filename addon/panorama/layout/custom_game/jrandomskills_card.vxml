@@ -1,0 +1,29 @@
+<root>
+    <styles><include src="s2r://panorama/styles/custom_game/jrandomskills.vcss_c" /></styles>
+    <Panel class="jrs-screen" hittest="false">
+        <Panel id="jrandomskills_card" class="jrs-hud jrs-hidden" hittest="false">
+            <Panel id="jrs_toast" class="jrs-toast jrs-hidden" hittest="false">
+                <Label text="{s:jrs_notice}" class="jrs-description" />
+            </Panel>
+            <Panel id="jrs_skill" class="jrs-card jrs-hidden" hittest="false">
+                <Panel class="jrs-icon" hittest="false">
+                    <Label text="{s:jrs_icon}" class="jrs-icon-glyph" />
+                </Panel>
+                <Panel class="jrs-copy" hittest="false">
+                    <Label id="jrs_observed_line" text="{s:jrs_observed}" class="jrs-observed jrs-hidden" />
+                    <Panel class="jrs-card-heading" hittest="false">
+                        <Label text="{s:jrs_name}" class="jrs-name" />
+                        <Label id="jrs_kind_label" text="{s:jrs_kind}" class="jrs-kind jrs-hidden" />
+                    </Panel>
+                    <Label id="jrs_effect" text="{s:jrs_description}" class="jrs-description jrs-hidden" />
+                    <Label id="jrs_action_line" text="{s:jrs_action}" class="jrs-action jrs-hidden" />
+                    <Label id="jrs_status_line" text="{s:jrs_status}" class="jrs-status jrs-hidden" />
+                    <Panel id="jrs_bind_line" class="jrs-bind jrs-hidden" hittest="false">
+                        <Label text="{s:jrs_bind}" class="jrs-bind-caption" />
+                        <Label text="{s:jrs_bind_command}" class="jrs-bind-command" />
+                    </Panel>
+                </Panel>
+            </Panel>
+        </Panel>
+    </Panel>
+</root>

@@ -173,7 +173,7 @@ namespace src.player.skills
 
                         var enemyEvent = PlayerManager.GetPlayerFromEvent(enemy);
                         if (enemyEvent == null || !enemyEvent.IsValid) return;
-                        enemyEvent.PrintToChat($" {ChatColors.Red}" + enemyEvent.GetTranslation("takeammo_enemy_info"));
+                        enemyEvent.Notify($" {ChatColors.Red}" + enemyEvent.GetTranslation("takeammo_enemy_info"));
                     });
                 }
                 else

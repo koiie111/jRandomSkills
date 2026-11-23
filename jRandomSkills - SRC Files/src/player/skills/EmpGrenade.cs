@@ -65,7 +65,7 @@ namespace src.player.skills
 
             var victimEvent = PlayerManager.GetPlayerFromEvent(victim);
             if (victimEvent != null && victimEvent.IsValid)
-                victimEvent.PrintToChat($" {ChatColors.Red}{victimEvent.GetTranslation("empgrenade_enemy_info")}");
+                victimEvent.Notify($" {ChatColors.Red}{victimEvent.GetTranslation("empgrenade_enemy_info")}");
         }
 
         public static void OnTick()

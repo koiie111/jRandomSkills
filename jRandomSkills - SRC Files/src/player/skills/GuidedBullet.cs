@@ -10,8 +10,18 @@ public sealed class GuidedBullet : ISkill
 {
     private const int MaxFlights = 2;
     private const int StepTicks = 4;
+    private const float CameraFollowSeconds = 0.15f;
+    private const ulong FlightMask = (ulong)(Contents.Solid | Contents.WorldGeometry | Contents.StaticLevel |
+        Contents.Window | Contents.PassBullets | Contents.PhysicsProp | Contents.CsgoMoveable |
+        Contents.Player | Contents.Hitbox | Contents.Sky);
+    internal const float DefaultDuration = 8f;
+    internal const float DefaultSpeed = 550f;
+    private const float MaxDuration = 12f;
+    private const float ArmSeconds = 5f;
     private const string CameraModel = "models/sprays/spray_plane.vmdl";
-    private sealed class Shot(CCSPlayerController player, CCSPlayerPawn pawn, CCSWeaponBase gun)
+    private const string BulletModel = "weapons/models/shared/shells/awp/awp_bullet.vmdl";
+    private const float BulletScale = 4f;
+    private sealed class Shot(CCSPlayerController player, CCSPlayerPawn pawn, CCSWeaponBase gun, int armedTick, float duration)
     {
         public CCSPlayerController Player { get; } = player;
         public CCSPlayerPawn Pawn { get; } = pawn;
@@ -20,21 +30,22 @@ public sealed class GuidedBullet : ISkill
         public uint GunHandle { get; } = gun.EntityHandle.Raw;
         public int SecondaryTick { get; } = gun.NextSecondaryAttackTick;
         public int PrimaryTick { get; } = gun.NextPrimaryAttackTick;
+        public int ArmEnd { get; } = armedTick + Ticks(ArmSeconds);
+        public int FireLockUntil { get; } = armedTick + Ticks(ArmSeconds + duration + 1);
+        public int DurationTicks { get; } = Ticks(duration);
         public bool ReleasedTrigger { get; set; } = (player.Buttons & PlayerButtons.Attack) == 0;
         public CDynamicProp? Camera { get; set; }
         public uint CameraHandle { get; set; }
-        public CBeam? Tracer { get; set; }
+        public CDynamicProp? Bullet { get; set; }
         public uint OriginalView { get; set; }
-        public MoveType_t OriginalMove { get; } = pawn.MoveType;
-        public MoveType_t OriginalActualMove { get; } = pawn.ActualMoveType;
         public Vector? Position { get; set; }
         public int NextStep { get; set; }
+        public int LaunchTick { get; set; }
         public int EndTick { get; set; }
         public float Speed { get; set; }
         public int Damage { get; set; }
     }
 
-    private static readonly HashSet<uint> spent = [];
     private static readonly Dictionary<uint, Shot> shots = [];
     private static readonly List<uint> iterationKeys = [];
     private static int flying;
@@ -43,6 +54,7 @@ public sealed class GuidedBullet : ISkill
     {
         SkillPackPlayers.Register(Skills.GuidedBullet);
         jRandomSkills.Instance.AddToManifest(CameraModel);
+        jRandomSkills.Instance.AddToManifest(BulletModel);
     }
 
     public static void UseSkill(CCSPlayerController player)
@@ -53,15 +65,17 @@ public sealed class GuidedBullet : ISkill
             Stop(key);
             return;
         }
-        if (spent.Contains(key) || player.IsBot || player.ControllingBot ||
+        if (player.IsBot || player.ControllingBot ||
             SkillPackPlayers.LivePawn(player) is not { MoveType: MoveType_t.MOVETYPE_WALK } pawn ||
             SkillPackPlayers.Gun(pawn) is not { Clip1: > 0 } gun ||
             gun.NextPrimaryAttackTick > Server.TickCount || gun.InReload ||
             (gun.DesignerName is "weapon_glock" or "weapon_famas" && gun.As<CCSWeaponBaseGun>().BurstShotsRemaining > 0)) return;
-        shots.Add(key, new Shot(player, pawn, gun));
-        SetPrimary(gun, int.MaxValue);
-        SetSecondary(gun, int.MaxValue);
-        player.PrintToChat(player.GetTranslationWithoutIlliterate("guidedbullet_armed"));
+        var duration = Math.Clamp(SkillsInfo.GetValue<float>(Skills.GuidedBullet, "Duration"), 0.25f, MaxDuration);
+        var shot = new Shot(player, pawn, gun, Server.TickCount, duration);
+        shots.Add(key, shot);
+        SetPrimary(gun, shot.FireLockUntil);
+        SetSecondary(gun, shot.FireLockUntil);
+        player.Notify(player.GetTranslationWithoutIlliterate("guidedbullet_armed"));
     }
 
     public static void OnTick()
@@ -76,8 +90,8 @@ public sealed class GuidedBullet : ISkill
             if (shot.Camera != null && tick < shot.NextStep && tick < shot.EndTick) continue;
             if (SkillPackPlayers.LivePawn(shot.Player)?.EntityHandle.Raw != shot.PawnHandle ||
                 shot.Pawn.WeaponServices?.ActiveWeapon.Raw != shot.GunHandle ||
-                shot.Gun.InReload || shot.Gun.NextPrimaryAttackTick != int.MaxValue ||
-                shot.Gun.NextSecondaryAttackTick != int.MaxValue)
+                shot.Gun.InReload || shot.Gun.NextPrimaryAttackTick != shot.FireLockUntil ||
+                shot.Gun.NextSecondaryAttackTick != shot.FireLockUntil)
             {
                 Stop(key);
                 continue;
@@ -85,20 +99,27 @@ public sealed class GuidedBullet : ISkill
 
             if (shot.Camera == null)
             {
-                bool pressed = (shot.Player.Buttons & PlayerButtons.Attack) != 0;
+                if (tick >= shot.ArmEnd)
+                {
+                    Stop(key);
+                    continue;
+                }
+
+                bool pressed = (shot.Player.Buttons & PlayerButtons.Attack) != 0
+                    || ((shot.Pawn.MovementServices?.QueuedButtonChangeMask ?? 0UL) & (ulong)PlayerButtons.Attack) != 0;
                 if (!pressed) shot.ReleasedTrigger = true;
                 else if (shot.ReleasedTrigger)
                 {
                     shot.ReleasedTrigger = false;
                     if (flying == MaxFlights)
-                        shot.Player.PrintToChat(shot.Player.GetTranslationWithoutIlliterate("guidedbullet_busy"));
+                        shot.Player.Notify(shot.Player.GetTranslationWithoutIlliterate("guidedbullet_busy"));
                     else if (!Launch(key, shot, tick))
                         Stop(key);
                 }
                 continue;
             }
 
-            if (tick >= shot.EndTick || !shot.Camera.IsValid || shot.Tracer is not { IsValid: true } ||
+            if (tick >= shot.EndTick || !shot.Camera.IsValid || shot.Bullet is not { IsValid: true } ||
                 shot.Pawn.CameraServices?.ViewEntity.Raw != shot.CameraHandle)
             {
                 Stop(key);
@@ -115,35 +136,54 @@ public sealed class GuidedBullet : ISkill
             shot.Pawn.MoveType != MoveType_t.MOVETYPE_WALK || shot.Pawn.AbsOrigin is not { } origin || shot.Pawn.CameraServices is not { } services) return false;
         var start = new Vector(origin.X, origin.Y, origin.Z + shot.Pawn.ViewOffset.Z);
         if (EntityManager.CreateTrackedDynamicProp(key) is not { IsValid: true } camera) return false;
-        var direction = SkillUtils.GetForwardVector(shot.Pawn.EyeAngles);
-        var tracer = EntityManager.CreateTrackedBeam(key, start, start + direction * 9, Color.Gold);
-        if (tracer is not { IsValid: true })
+        if (EntityManager.CreateTrackedPropOverride(key) is not { IsValid: true } bullet)
         {
             EntityManager.DestroyEntity(camera.Index);
             return false;
         }
 
+        var angles = shot.Pawn.V_angle;
+        using (var keys = new CEntityKeyValues())
+        {
+            keys.SetString("model", BulletModel);
+            keys.SetVector("origin", start);
+            keys.SetInt("solid", (int)SolidType_t.SOLID_NONE);
+            bullet.DispatchSpawn(keys);
+        }
+        if (!bullet.IsValid)
+        {
+            EntityManager.DestroyEntity(camera.Index);
+            return false;
+        }
+        bullet.Teleport(start, angles);
+        bullet.AcceptInput("DisableCollision");
+        EntityManager.MakeNonSolid(bullet);
+        var skeleton = bullet.CBodyComponent?.SceneNode?.GetSkeletonInstance();
+        if (skeleton != null)
+        {
+            skeleton.Scale = BulletScale;
+            Utilities.SetStateChanged(bullet, "CBaseEntity", "m_CBodyComponent");
+        }
+
         camera.SetModel(CameraModel);
         camera.Render = Color.Transparent;
-        camera.Teleport(start, shot.Pawn.EyeAngles);
+        camera.Teleport(start, angles);
         camera.DispatchSpawn();
+        EntityManager.MakeNonSolid(camera);
         shot.Camera = camera;
         shot.CameraHandle = camera.EntityHandle.Raw;
-        shot.Tracer = tracer;
+        shot.Bullet = bullet;
         shot.OriginalView = services.ViewEntity.Raw;
         shot.Position = start;
-        float duration = Math.Clamp(SkillsInfo.GetValue<float>(Skills.GuidedBullet, "Duration"), 0.25f, 5);
-        shot.EndTick = tick + (int)MathF.Ceiling(duration / Server.TickInterval);
+        shot.LaunchTick = tick;
+        shot.EndTick = tick + shot.DurationTicks;
         shot.NextStep = tick + StepTicks;
         shot.Speed = Math.Clamp(SkillsInfo.GetValue<float>(Skills.GuidedBullet, "Speed"), 100, 1800);
         shot.Damage = Math.Clamp(SkillsInfo.GetValue<int>(Skills.GuidedBullet, "Damage"), 1, 1000);
         flying++;
-        spent.Add(key);
 
         shot.Gun.Clip1--;
         Utilities.SetStateChanged(shot.Gun, "CBasePlayerWeapon", "m_iClip1");
-        shot.Pawn.Teleport(velocity: new Vector());
-        SetMoveType(shot.Pawn, MoveType_t.MOVETYPE_NONE, MoveType_t.MOVETYPE_NONE);
         services.ViewEntity.Raw = camera.EntityHandle.Raw;
         Utilities.SetStateChanged(shot.Pawn, "CBasePlayerPawn", "m_pCameraServices");
         return true;
@@ -153,10 +193,10 @@ public sealed class GuidedBullet : ISkill
     {
         shot.NextStep = tick + StepTicks;
         var start = shot.Position!;
-        var angles = shot.Pawn.EyeAngles;
+        var angles = shot.Pawn.V_angle;
         var forward = SkillUtils.GetForwardVector(angles);
         var end = start + forward * (shot.Speed * StepTicks * Server.TickInterval);
-        var path = RayTrace.TraceShape(shot.Player, start, end, allowDebugBeam: false);
+        var path = RayTrace.TraceShape(shot.Player, start, end, FlightMask, allowDebugBeam: false);
         if (path == null || path.Value.IsAllSolid || path.Value.DidHit)
         {
             Stop(key);
@@ -173,8 +213,9 @@ public sealed class GuidedBullet : ISkill
         }
 
         shot.Position = end;
-        var cameraTarget = end - forward * 48 + new Vector(0, 0, 12);
-        var clearance = RayTrace.TraceShape(shot.Player, end, cameraTarget, allowDebugBeam: false);
+        float follow = Math.Min(1f, (tick - shot.LaunchTick) * Server.TickInterval / CameraFollowSeconds);
+        var cameraTarget = end + (new Vector(0, 0, 12) - forward * 48) * follow;
+        var clearance = RayTrace.TraceShape(shot.Player, end, cameraTarget, FlightMask, allowDebugBeam: false);
         if (clearance == null || clearance.Value.IsAllSolid)
         {
             Stop(key);
@@ -184,12 +225,7 @@ public sealed class GuidedBullet : ISkill
             cameraTarget = end + (cameraTarget - end) * Math.Max(0, clearance.Value.Fraction - 0.08f);
 
         shot.Camera!.Teleport(cameraTarget, angles);
-        var tracer = shot.Tracer!;
-        tracer.Teleport(end - forward * 9);
-        tracer.EndPos.X = end.X;
-        tracer.EndPos.Y = end.Y;
-        tracer.EndPos.Z = end.Z;
-        Utilities.SetStateChanged(tracer, "CBeam", "m_vecEndPos");
+        shot.Bullet!.Teleport(end, angles);
     }
 
     public static void WeaponEquip(EventItemEquip e)
@@ -199,11 +235,7 @@ public sealed class GuidedBullet : ISkill
     }
 
     public static void DisableSkill(CCSPlayerController player) => Stop(player.Key());
-    public static void PlayerDisconnect(uint key)
-    {
-        Stop(key);
-        spent.Remove(key);
-    }
+    public static void PlayerDisconnect(uint key) => Stop(key);
     public static void PlayerDeath(EventPlayerDeath e)
     {
         if (e.Userid is { IsValid: true } player) Stop(player.Key());
@@ -212,38 +244,32 @@ public sealed class GuidedBullet : ISkill
     {
         foreach (uint key in shots.Keys.ToArray()) Stop(key);
     }
-    public static void NewRound()
-    {
-        RoundEnd();
-        spent.Clear();
-    }
+    public static void NewRound() => RoundEnd();
 
     private static void Stop(uint key)
     {
         if (!shots.Remove(key, out var shot)) return;
         if (shot.Gun.IsValid && shot.Gun.EntityHandle.Raw == shot.GunHandle)
         {
-            if (shot.Gun.NextPrimaryAttackTick == int.MaxValue)
+            if (shot.Gun.NextPrimaryAttackTick == shot.FireLockUntil)
                 SetPrimary(shot.Gun, Math.Max(shot.PrimaryTick, Server.TickCount + 1));
-            if (shot.Gun.NextSecondaryAttackTick == int.MaxValue)
+            if (shot.Gun.NextSecondaryAttackTick == shot.FireLockUntil)
                 SetSecondary(shot.Gun, Math.Max(shot.SecondaryTick, Server.TickCount + 1));
         }
         if (shot.Camera == null) return;
 
         flying--;
-        if (shot.Pawn.IsValid && shot.Pawn.EntityHandle.Raw == shot.PawnHandle)
+        if (shot.Pawn.IsValid && shot.Pawn.EntityHandle.Raw == shot.PawnHandle &&
+            shot.Pawn.CameraServices is { } services && services.ViewEntity.Raw == shot.CameraHandle)
         {
-            if (shot.Pawn.CameraServices is { } services && services.ViewEntity.Raw == shot.CameraHandle)
-            {
-                services.ViewEntity.Raw = shot.OriginalView;
-                Utilities.SetStateChanged(shot.Pawn, "CBasePlayerPawn", "m_pCameraServices");
-            }
-            if (shot.Pawn.MoveType == MoveType_t.MOVETYPE_NONE)
-                SetMoveType(shot.Pawn, shot.OriginalMove, shot.OriginalActualMove);
+            services.ViewEntity.Raw = shot.OriginalView;
+            Utilities.SetStateChanged(shot.Pawn, "CBasePlayerPawn", "m_pCameraServices");
         }
         if (shot.Camera.IsValid) EntityManager.DestroyEntity(shot.Camera.Index);
-        if (shot.Tracer is { IsValid: true } tracer) EntityManager.DestroyEntity(tracer.Index);
+        if (shot.Bullet is { IsValid: true } bullet) EntityManager.DestroyEntity(bullet.Index);
     }
+
+    private static int Ticks(float seconds) => (int)MathF.Ceiling(seconds / Server.TickInterval);
 
     private static void SetPrimary(CCSWeaponBase gun, int tick)
     {
@@ -257,18 +283,12 @@ public sealed class GuidedBullet : ISkill
         Utilities.SetStateChanged(gun, "CBasePlayerWeapon", "m_nNextSecondaryAttackTick");
     }
 
-    private static void SetMoveType(CCSPlayerPawn pawn, MoveType_t moveType, MoveType_t actual)
-    {
-        pawn.MoveType = moveType;
-        pawn.ActualMoveType = actual;
-        Utilities.SetStateChanged(pawn, "CBaseEntity", "m_MoveType");
-    }
-
     public sealed class SkillConfig() : SkillsInfo.DefaultSkillInfo(Skills.GuidedBullet, color: "#ffd65e",
         disableOnFreezeTime: true, maxPerServer: 2, rarity: src.utils.Rarity.Rare)
     {
-        public float Duration { get; set; } = 3;
-        public float Speed { get; set; } = 750;
+        public int DefaultsVersion { get; set; } = 1;
+        public float Duration { get; set; } = DefaultDuration;
+        public float Speed { get; set; } = DefaultSpeed;
         public int Damage { get; set; } = 75;
     }
 }

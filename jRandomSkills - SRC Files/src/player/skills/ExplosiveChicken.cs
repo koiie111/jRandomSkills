@@ -290,7 +290,7 @@
 //                if (chicken.Leader.Raw != enemy.Pawn.Raw)
 //                    chicken.Leader.Raw = enemy.Pawn.Raw;
 
-//                player.PrintToChat($"Closest enemy: {(enemy != null ? enemy.PlayerName : "None")}");
+//                player.Notify($"Closest enemy: {(enemy != null ? enemy.PlayerName : "None")}");
 
 //                if (skillInfo.ChickenLastOrigin != null)
 //                {
@@ -306,7 +306,7 @@
 //                            currentOrigin.Z
 //                        );
 
-//                        player.PrintToChat($"Chicken boost");
+//                        player.Notify($"Chicken boost");
 //                        chicken.Teleport(newPos, chicken.AbsRotation, chicken.AbsVelocity);
 //                        skillInfo.ChickenLastOrigin = newPos;
 //                    }

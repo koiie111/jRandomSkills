@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API;
+using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Entities.Constants;
@@ -14,8 +14,6 @@ using System.Collections.Concurrent;
 using System.Drawing;
 using System.Globalization;
 using System.Runtime.InteropServices;
-using WASDMenuAPI.Classes;
-using WASDSharedAPI;
 
 namespace src.utils
 {
@@ -66,25 +64,14 @@ namespace src.utils
             LazySig<MemoryFunctionVoid<CBasePlayerPawn, QAngle>>("SnapViewAngles", s => new(s));
         // private static readonly int collisionRulesChangedOffset = GameData.GetOffset("CBaseEntity_CollisionRulesChanged");
 
-        public static void PrintToChat(CCSPlayerController player, string? msg, string border = "tb", string? title = null, bool ignoreIlliterate = false)
+        public static void PrintToChat(CCSPlayerController player, string? msg, string border = "tb",
+            string? title = null, bool ignoreIlliterate = false)
         {
-            if (!player.IsValid) return;
-
-            var config = Config.LoadedConfig.ChatMessage;
-            float maxWidth = config.MaxWidth;
-            char symbol = config.LineSymbol;
-            if (string.IsNullOrEmpty(title)) title = player.GetTranslation("jRandomSkills");
-
-            if (!ignoreIlliterate && Illiterate.CheckIlliterateSkill(player))
-                msg = Illiterate.GetRandomText(msg);
-
-            if (border.Contains('t') && config.LineShow)
-                player.PrintToChat($" {MeansureString.GetTextDashed($"{(config.TagFormat.Contains("{TAG}") ? config.TagFormat.Replace("{TAG}", title) : $"\u0002◢◆◤ {title} ◥◆◣")}", maxWidth, symbol, config.LineColor)}");
-            if (!string.IsNullOrEmpty(msg) && config.InfoMessageShow)
-                player.PrintToChat($" {config.InfoSkillColor} {msg.Replace("\x02", config.InfoPlayerNameColor).Replace("\x06", config.InfoSkillColor)}");
-            if (border.Contains('b') && config.LineShow)
-                player.PrintToChat($" {MeansureString.GetTextDashed("", maxWidth, symbol, config.LineColor)}");
+            if (!Config.LoadedConfig.ChatMessage.InfoMessageShow || string.IsNullOrWhiteSpace(msg)) return;
+            Hud.Notify(player, !ignoreIlliterate && Illiterate.CheckIlliterateSkill(player)
+                ? Illiterate.GetRandomText(msg) : msg);
         }
+
 
         public static void EmitSoundToPlayer(CCSPlayerController? listener, string soundEvent, float volume)
         {
@@ -1180,188 +1167,15 @@ namespace src.utils
             return designerName;
         }
 
-        private static IWasdMenuManager? GetMenuManager()
-        {
-            if (jRandomSkills.Instance.MenuManager == null)
-                jRandomSkills.Instance.MenuManager = new WasdManager();
+        public static void CloseMenu(CCSPlayerController? player) => Hud.ClosePicker(player);
 
-            ApplyMenuVisibleItems();
-            return jRandomSkills.Instance.MenuManager;
-        }
-
-        private static void ApplyMenuVisibleItems()
-        {
-            int visibleItems = Config.LoadedConfig.HtmlHudCustomisation.WSADMenuVisibleItems;
-            WASDMenuAPI.WasdMenuPlayer.DefaultVisibleOptions = visibleItems < 1 ? 3 : Math.Min(visibleItems, 10);
-        }
-
-        public static void CloseMenu(CCSPlayerController? player)
-        {
-            var manager = GetMenuManager();
-            if (manager == null) return;
-            manager.CloseMenu(player);
-        }
-
-        public static bool HasMenu(CCSPlayerController? player)
-        {
-            var manager = GetMenuManager();
-            if (manager == null) return false;
-            return manager.HasMenu(player);
-        }
-
-        public static bool SetMenuPaused(CCSPlayerController? player, bool pause)
-        {
-            var manager = GetMenuManager();
-            if (manager == null) return false;
-            return manager.SetMenuPaused(player, pause);
-        }
-
-        private static string GetInvisibleSignature(string id)
-        {
-            if (string.IsNullOrEmpty(id)) return "";
-            var sb = new System.Text.StringBuilder();
-
-            foreach (char c in id)
-                for (int i = 0; i < 8; i++)
-                    sb.Append(((c >> i) & 1) == 1 ? "\u200B" : "\u200C");
-
-            return sb.ToString();
-        }
+        public static bool HasMenu(CCSPlayerController? player) => Hud.HasPicker(player);
 
         public static void UpdateMenu(CCSPlayerController? player, ConcurrentBag<(string, string)> items)
-        {
-            if (player == null) return;
+            => Hud.UpdatePicker(player, items);
 
-            var manager = GetMenuManager();
-            if (manager == null) return;
-
-            var playerInfo = PlayerManager.GetPlayer(player);
-            if (playerInfo == null) return;
-
-            bool isIlliterate = Illiterate.CheckIlliterateSkill(player);
-
-            Dictionary<string, Action<CCSPlayerController, IWasdMenuOption>> list = [];
-            foreach (var item in items)
-            {
-                string encodedText = isIlliterate
-                    ? System.Net.WebUtility.HtmlEncode(Illiterate.GetRandomText(item.Item1)!)
-                    : System.Net.WebUtility.HtmlEncode(item.Item1);
-
-                string uniqueKey = GetInvisibleSignature(item.Item2) + $"\u202A{encodedText}\u202C";
-
-                list.TryAdd(uniqueKey, (p, option) =>
-                {
-                    jRandomSkills.Instance.SkillAction(playerInfo.Skill.ToString(), "TypeSkill", [p, new[] { item.Item2 }]);
-                    manager.CloseMenu(p);
-                });
-            }
-
-            manager.UpdateActiveMenu(player, list);
-        }
-
-        public static void CreateMenu(CCSPlayerController? player, ConcurrentBag<(string, string)> enemies, (string, string, bool)? lastElement = null)
-        {
-            if (player == null || !player.IsValid) return;
-
-            var playerInfo = PlayerManager.GetPlayer(player);
-            if (playerInfo == null || playerInfo.HideHUD >= Server.TickCount) return;
-
-            if (player.IsBot)
-            {
-                var pool = new List<string>();
-
-                foreach (var enemy in enemies)
-                    if (!string.IsNullOrEmpty(enemy.Item2))
-                        pool.Add(enemy.Item2);
-
-                if (lastElement != null && !string.IsNullOrEmpty(lastElement.Value.Item2))
-                    pool.Add(lastElement.Value.Item2);
-
-                if (pool.Count > 0)
-                {
-                    string randomTarget = pool[Random.Shared.Next(pool.Count)];
-                    jRandomSkills.Instance.SkillAction(playerInfo.Skill.ToString(), "TypeSkill", [player, new[] { randomTarget }]);
-                }
-
-                return;
-            }
-
-            var skillData = SkillData.Skills.FirstOrDefault(s => s.Skill == playerInfo.Skill);
-            if (skillData == null) return;
-
-            var manager = GetMenuManager();
-            if (manager == null) return;
-
-            var config = Config.LoadedConfig.HtmlHudCustomisation;
-            var your_skill = player.GetTranslationWithoutIlliterate("your_skill");
-            var emptySymbol = $"<font class='fontSize-{(string.IsNullOrEmpty(your_skill) ? "l" : "ml")}'> </font>";
-
-            string infoLine = string.IsNullOrEmpty(your_skill) || string.IsNullOrEmpty(config.HeaderLineSize)
-                ? ""
-                : $"<font class='fontWeight-Bold fontSize-{config.HeaderLineSize}' color='{config.HeaderLineColor}'>\u202A{your_skill}:\u202C</font><br>";
-
-            string skillLine = Illiterate.CheckIlliterateSkill(player)
-                ? $"<font class='fontWeight-Bold fontSize-{config.SkillLineSize}'>\u202A{Illiterate.GetRandomText(player.GetSkillName(skillData.Skill))}\u202C</font><br>"
-                : $"<font class='fontWeight-Bold fontSize-{config.SkillLineSize}' color='{skillData.Color}'>\u202A{player.GetSkillName(skillData.Skill)}\u202C</font><br>";
-
-            var skill_select_info = player.GetTranslation($"{playerInfo.Skill.ToString().ToLowerInvariant()}_select_info");
-            string remainingLine = string.IsNullOrWhiteSpace(skill_select_info) || string.IsNullOrEmpty(config.WSADMenuSelectInfoLineSize)
-                ? ""
-                : $"<font class='fontSize-{config.WSADMenuSelectInfoLineSize}' color='{config.WSADMenuSelectInfoLineColor}'>{skill_select_info}</font><br>";
-
-            var hudContent = infoLine + skillLine + remainingLine;
-
-            string controllsLine = string.IsNullOrEmpty(config.WSADMenuControllsLineSize) ? "" :
-                $"{emptySymbol}<font class='fontSize-{config.WSADMenuControllsLineSize}' color='{config.WSADMenuControllsLineColor1}'>{player.GetTranslationWithoutIlliterate($"menu_controlls_scroll")}</font>"
-                + $"<font class='fontSize-{config.WSADMenuControllsLineSize}' color='{config.WSADMenuControllsLineColor2}'>{player.GetTranslationWithoutIlliterate($"menu_controlls_padding")}</font>"
-                + $"<font class='fontSize-{config.WSADMenuControllsLineSize}' color='{config.WSADMenuControllsLineColor3}'>{player.GetTranslationWithoutIlliterate($"menu_controlls_select")}</font>{emptySymbol}<br>";
-
-            string itemText = $"<font class='fontSize-{config.WSADMenuItemLineSize}' color='{config.WSADMenuItemLineColor}'>{{0}}</font><br>";
-            string itemHoverText = $"<font class='fontSize-{config.WSADMenuItemLineSize}'><font color='purple'>[ </font><font color='{config.WSADMenuItemHoverLineColor}'>{{0}}</font><font color='purple'> ]</font></font><br>";
-
-            bool isIlliterate = Illiterate.CheckIlliterateSkill(player);
-
-            IWasdMenu menu = manager.CreateMenu(hudContent, itemText, itemHoverText, controllsLine);
-            foreach (var enemy in enemies)
-            {
-                string encodedEnemyName = isIlliterate
-                    ? System.Net.WebUtility.HtmlEncode(Illiterate.GetRandomText(enemy.Item1)!)
-                    : System.Net.WebUtility.HtmlEncode(enemy.Item1);
-
-                string uniqueKey = GetInvisibleSignature(enemy.Item2) + $"\u202A{encodedEnemyName}\u202C";
-
-                menu.Add(uniqueKey, (p, option) =>
-                {
-                    jRandomSkills.Instance.SkillAction(playerInfo.Skill.ToString(), "TypeSkill", [p, new[] { enemy.Item2 }]);
-                    manager.CloseMenu(p);
-                });
-            }
-
-            if (lastElement != null)
-            {
-                string lastText = lastElement.Value.Item1;
-                string lastColor = string.Empty;
-
-                if (lastText.Length > 8 && lastText[0] == '#' && lastText[7] == '|')
-                {
-                    lastColor = lastText[..8];
-                    lastText = lastText[8..];
-                }
-
-                string encodedLastElement = isIlliterate
-                    ? System.Net.WebUtility.HtmlEncode(Illiterate.GetRandomText(lastText)!)
-                    : System.Net.WebUtility.HtmlEncode(lastText);
-
-                menu.Add($"{lastColor}\u202A{encodedLastElement}\u202C", (p, option) =>
-                {
-                    jRandomSkills.Instance.SkillAction(playerInfo.Skill.ToString(), "TypeSkill", [p, new[] { lastElement.Value.Item2 }]);
-                    if (lastElement.Value.Item3)
-                        manager.CloseMenu(p);
-                });
-            }
-
-            manager.OpenMainMenu(player, menu);
-        }
+        public static void CreateMenu(CCSPlayerController? player, ConcurrentBag<(string, string)> items,
+            (string, string, bool)? lastElement = null) => Hud.CreatePicker(player, items, lastElement);
 
         public static void ToogleDoor(CBaseEntity entity, CBasePlayerPawn pawn)
         {

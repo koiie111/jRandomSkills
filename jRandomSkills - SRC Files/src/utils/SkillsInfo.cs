@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API.Modules.Utils;
+using CounterStrikeSharp.API.Modules.Utils;
 using Microsoft.Extensions.Logging;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -75,8 +75,29 @@ namespace src.utils
 
                             present.Add(name);
 
-                            if (skillObj is JObject current && HasMissingKeys(current, instance))
-                                needsRewrite = true;
+                            if (skillObj is JObject current)
+                            {
+                                if (HasMissingKeys(current, instance)) needsRewrite = true;
+
+                                // Update the old Guided Bullet defaults while preserving other configured values.
+                                if (name == nameof(Skills.GuidedBullet) && current[nameof(player.skills.GuidedBullet.SkillConfig.DefaultsVersion)] == null)
+                                {
+                                    if (current["Duration"] is JValue duration
+                                        && duration.Type is JTokenType.Integer or JTokenType.Float
+                                        && duration.Value<float>() == 3f)
+                                    {
+                                        current["Duration"] = player.skills.GuidedBullet.DefaultDuration;
+                                        needsRewrite = true;
+                                    }
+                                    if (current["Speed"] is JValue speed
+                                        && speed.Type is JTokenType.Integer or JTokenType.Float
+                                        && speed.Value<float>() == 750f)
+                                    {
+                                        current["Speed"] = player.skills.GuidedBullet.DefaultSpeed;
+                                        needsRewrite = true;
+                                    }
+                                }
+                            }
 
                             try
                             {

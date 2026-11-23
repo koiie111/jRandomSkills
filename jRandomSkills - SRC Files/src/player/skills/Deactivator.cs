@@ -65,7 +65,7 @@ namespace src.player.skills
 
             if (!uint.TryParse(enemyId, out uint enemyIndex))
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
@@ -73,7 +73,7 @@ namespace src.player.skills
 
             if (enemy == null)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
+                playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
             }
 
@@ -102,7 +102,7 @@ namespace src.player.skills
                 SkillUtils.CreateMenu(player, menuItems);
             }
             else
-                playerEvent.PrintToChat($" {ChatColors.Red}{player.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+                playerEvent.Notify($" {ChatColors.Red}{player.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
         }
 
         public static void DisableSkill(CCSPlayerController player)
@@ -125,7 +125,8 @@ namespace src.player.skills
             {
                 playerInfo.Skill = Skills.None;
                 playerInfo.SpecialSkill = skillName;
-                playerEvent.PrintToChat($" {ChatColors.Green}" + playerEvent.GetTranslation("deactivator_player_info", enemy.PlayerName));
+                playerInfo.HudChoice = new(Name: enemy.PlayerName);
+                playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("deactivator_player_info", enemy.PlayerName));
             }
 
             if (enemyInfo != null)
@@ -137,7 +138,7 @@ namespace src.player.skills
                 var enemyEvent = PlayerManager.GetPlayerFromEvent(enemy);
                 if (enemyEvent == null || !enemyEvent.IsValid) return;
 
-                enemyEvent.PrintToChat($" {ChatColors.Red}" + enemyEvent.GetTranslation("deactivator_enemy_info"));
+                enemyEvent.Notify($" {ChatColors.Red}" + enemyEvent.GetTranslation("deactivator_enemy_info"));
             }
         }
 

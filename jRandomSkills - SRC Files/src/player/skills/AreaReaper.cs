@@ -41,14 +41,14 @@ namespace src.player.skills
 
             if (playerInfo.SkillUsed)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_used_info")}");
                 return;
             }
 
             int site = bombsiteA.Contains(commands[0]) ? 0 : bombsiteB.Contains(commands[0]) ? 1 : -1;
             if (site == -1)
             {
-                playerEvent.PrintToChat($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_incorrect_site")}");
+                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("areareaper_incorrect_site")}");
                 return;
             }
 
@@ -61,12 +61,13 @@ namespace src.player.skills
                     targetSite.BombPlantedHere = true;
                     Utilities.SetStateChanged(targetSite, "CBombTarget", "m_bBombPlantedHere");
                     playerInfo.SkillUsed = true;
+                    playerInfo.HudChoice = new(Translation: site == 0 ? "bombsite_a" : "bombsite_b");
 
                     playersToTarget[player.Key()] = targetSite.Index;
 
                     string siteLetter = site == 0 ? "A" : "B";
                     foreach (var ct in PlayerManager.GetTickPlayers().Where(p => p != null && p.IsValid && !p.IsHLTV && p.Team == CsTeam.CounterTerrorist))
-                        ct.PrintToChat($" {ChatColors.Green}" + ct.GetTranslation("areareaper_teammates_info", siteLetter));
+                        ct.Notify($" {ChatColors.Green}" + ct.GetTranslation("areareaper_teammates_info", siteLetter));
                 }
             }
         }
@@ -129,7 +130,7 @@ namespace src.player.skills
                 if (activeWeapon == null || !activeWeapon.IsValid || activeWeapon.DesignerName != "weapon_c4") continue;
 
                 if (!pawn.InBombZone && pawn.InBombZoneTrigger)
-                    playerEvent.PrintToCenterAlert(playerEvent.GetTranslation("areareaper_bombsite_disabled"));
+                    playerEvent.Notify(playerEvent.GetTranslation("areareaper_bombsite_disabled"));
             }
         }
 

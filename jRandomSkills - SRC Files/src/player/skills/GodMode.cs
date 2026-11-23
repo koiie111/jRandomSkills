@@ -122,7 +122,7 @@ namespace src.player.skills
                     skillInfo.Cooldown = DateTime.Now;
                     skillInfo.HaveGodMode = true;
 
-                    PlayerManager.GetPlayerFromEvent(player)?.PrintToChat($" {ChatColors.Green} {player.GetTranslation("godmode_on")}");
+                    PlayerManager.GetPlayerFromEvent(player)?.Notify($" {ChatColors.Green} {player.GetTranslation("godmode_on")}");
                     player.PlayerPawn.Value.TakesDamage = false;
                     SetGodModeRender(player.PlayerPawn.Value, skillInfo);
 
@@ -143,7 +143,7 @@ namespace src.player.skills
 
                             player.PlayerPawn.Value.TakesDamage = true;
                             RestoreRender(player.PlayerPawn.Value, originalRender);
-                            PlayerManager.GetPlayerFromEvent(player)?.PrintToChat($" {ChatColors.Red} {player.GetTranslation("godmode_off")}");
+                            PlayerManager.GetPlayerFromEvent(player)?.Notify($" {ChatColors.Red} {player.GetTranslation("godmode_off")}");
 
                             if (player.PlayerPawn.Value.Health <= 0)
                                 player.CommitSuicide(false, true);
