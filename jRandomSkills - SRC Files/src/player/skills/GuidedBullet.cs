@@ -12,12 +12,11 @@ namespace src.player.skills;
 public sealed class GuidedBullet : ISkill
 {
     private const int MaxFlights = 2;
-    private const float CameraFollowSeconds = 0.15f;
     private const float SteeringSmoothingSeconds = 0.045f;
-    private const float SkyClearance = 0.25f;
+    private const ulong FlightExclude = (ulong)(Contents.Sky | Contents.PlayerClip | Contents.NpcClip);
     private const ulong FlightMask = (ulong)(Contents.Solid | Contents.WorldGeometry | Contents.StaticLevel |
         Contents.Window | Contents.PassBullets | Contents.PhysicsProp | Contents.CsgoMoveable |
-        Contents.Player | Contents.Hitbox | Contents.Sky);
+        Contents.Player | Contents.Hitbox);
     internal const float DefaultDuration = 8f;
     internal const float DefaultSpeed = 360f;
     internal const int DefaultsVersion = 2;
@@ -48,7 +47,6 @@ public sealed class GuidedBullet : ISkill
         public Vector TraceStart { get; } = new();
         public Vector TraceEnd { get; } = new();
         public float SteeringBlend { get; } = 1f - MathF.Exp(-Server.TickInterval / SteeringSmoothingSeconds);
-        public int LaunchTick { get; set; }
         public int EndTick { get; set; }
         public float Speed { get; set; }
         public int Damage { get; set; }
@@ -133,7 +131,7 @@ public sealed class GuidedBullet : ISkill
                 continue;
             }
 
-            Step(key, shot, tick);
+            Step(key, shot);
         }
     }
 
@@ -149,7 +147,9 @@ public sealed class GuidedBullet : ISkill
             return false;
         }
 
-        var angles = shot.Pawn.V_angle;
+        var aim = shot.Pawn.V_angle;
+        var angles = new Vector3(aim.X, aim.Y, 0);
+        var startPosition = (Vector3)start;
         using (var keys = new CEntityKeyValues())
         {
             keys.SetString("model", BulletModel);
@@ -162,7 +162,7 @@ public sealed class GuidedBullet : ISkill
             EntityManager.DestroyEntity(camera.Index);
             return false;
         }
-        bullet.Teleport(start, angles);
+        bullet.Teleport(startPosition, angles);
         bullet.AcceptInput("DisableCollision");
         EntityManager.MakeNonSolid(bullet);
         var skeleton = bullet.CBodyComponent?.SceneNode?.GetSkeletonInstance();
@@ -174,17 +174,16 @@ public sealed class GuidedBullet : ISkill
 
         camera.SetModel(CameraModel);
         camera.Render = Color.Transparent;
-        camera.Teleport(start, angles);
+        camera.Teleport(CameraPosition(shot, startPosition, Forward(angles)), angles);
         camera.DispatchSpawn();
         EntityManager.MakeNonSolid(camera);
         shot.Camera = camera;
         shot.CameraHandle = camera.EntityHandle.Raw;
         shot.Bullet = bullet;
         shot.OriginalView = services.ViewEntity.Raw;
-        shot.Position = (Vector3)start;
-        shot.LaunchTick = tick;
+        shot.Position = startPosition;
         shot.EndTick = tick + shot.DurationTicks;
-        shot.Heading = new Vector3(angles.X, angles.Y, 0);
+        shot.Heading = angles;
         shot.Speed = Math.Clamp(SkillsInfo.GetValue<float>(Skills.GuidedBullet, "Speed"), 100, 1800);
         shot.Damage = Math.Clamp(SkillsInfo.GetValue<int>(Skills.GuidedBullet, "Damage"), 1, 1000);
         flying++;
@@ -196,7 +195,7 @@ public sealed class GuidedBullet : ISkill
         return true;
     }
 
-    private static void Step(uint key, Shot shot, int tick)
+    private static void Step(uint key, Shot shot)
     {
         var start = shot.Position;
         var aim = shot.Pawn.V_angle;
@@ -205,28 +204,9 @@ public sealed class GuidedBullet : ISkill
         angles.Y = MathF.IEEERemainder(angles.Y + MathF.IEEERemainder(aim.Y - angles.Y, 360f) * shot.SteeringBlend, 360f);
         shot.Heading = angles;
 
-        const float RadiansPerDegree = MathF.PI / 180f;
-        var (sinPitch, cosPitch) = MathF.SinCos(angles.X * RadiansPerDegree);
-        var (sinYaw, cosYaw) = MathF.SinCos(angles.Y * RadiansPerDegree);
-        var forward = new Vector3(cosPitch * cosYaw, cosPitch * sinYaw, -sinPitch);
-        var movement = forward * (shot.Speed * Server.TickInterval);
-        var end = start + movement;
+        var forward = Forward(angles);
+        var end = start + forward * (shot.Speed * Server.TickInterval);
         var path = TracePath(shot, start, end);
-        if (path is { DidHit: true, IsAllSolid: false } sky && IsSkyBoundary(sky))
-        {
-            // Keep the camera inside the map, but let the player steer along the sky and back down.
-            var normal = sky.Normal;
-            var alongSky = (movement - normal * Vector3.Dot(movement, normal)) * (1f - sky.Fraction);
-            start = sky.EndPos + normal * SkyClearance;
-            end = start + alongSky;
-            path = TracePath(shot, start, end);
-            if (path is { DidHit: true, IsAllSolid: false } edge && IsSkyBoundary(edge))
-            {
-                // A map corner can put a second sky plane across the slide.
-                MoveCamera(shot, start, angles, forward, tick);
-                return;
-            }
-        }
         if (path == null || path.Value.IsAllSolid || path.Value.DidHit)
         {
             Stop(key);
@@ -242,17 +222,17 @@ public sealed class GuidedBullet : ISkill
             return;
         }
 
-        MoveCamera(shot, end, angles, forward, tick);
+        shot.Position = end;
+        shot.Camera!.Teleport(CameraPosition(shot, end, forward), angles);
+        shot.Bullet!.Teleport(end, angles);
     }
 
-    private static bool IsSkyBoundary(TraceHit hit)
+    private static Vector3 Forward(Vector3 angles)
     {
-        if ((hit.HitContents & Contents.Sky) != 0) return true;
-
-        // Maps can use a non-solid player clip ceiling below the sky material.
-        return hit.NormalZ < -0.7f
-            && (hit.HitContents & Contents.PlayerClip) != 0
-            && (hit.HitContents & Contents.Solid) == 0;
+        const float RadiansPerDegree = MathF.PI / 180f;
+        var (sinPitch, cosPitch) = MathF.SinCos(angles.X * RadiansPerDegree);
+        var (sinYaw, cosYaw) = MathF.SinCos(angles.Y * RadiansPerDegree);
+        return new Vector3(cosPitch * cosYaw, cosPitch * sinYaw, -sinPitch);
     }
 
     private static TraceHit? TracePath(Shot shot, Vector3 start, Vector3 end)
@@ -264,22 +244,16 @@ public sealed class GuidedBullet : ISkill
         shot.TraceEnd.X = end.X;
         shot.TraceEnd.Y = end.Y;
         shot.TraceEnd.Z = end.Z;
-        return RayTrace.TraceShape(shot.Player, shot.TraceStart, shot.TraceEnd, FlightMask, allowDebugBeam: false);
+        return RayTrace.TraceShape(shot.Player, shot.TraceStart, shot.TraceEnd, FlightMask, FlightExclude, allowDebugBeam: false);
     }
 
-    private static void MoveCamera(Shot shot, Vector3 end, Vector3 angles, Vector3 forward, int tick)
+    private static Vector3 CameraPosition(Shot shot, Vector3 bullet, Vector3 forward)
     {
-        shot.Position = end;
-        float follow = Math.Min(1f, (tick - shot.LaunchTick) * Server.TickInterval / CameraFollowSeconds);
-        var cameraTarget = end + (new Vector3(0, 0, 12) - forward * 48) * follow;
-        var clearance = TracePath(shot, end, cameraTarget);
-        if (clearance == null || clearance.Value.IsAllSolid)
-            cameraTarget = end;
-        else if (clearance.Value.DidHit)
-            cameraTarget = end + (cameraTarget - end) * Math.Max(0, clearance.Value.Fraction - 0.08f);
-
-        shot.Camera!.Teleport(cameraTarget, angles);
-        shot.Bullet!.Teleport(end, angles);
+        // Keep the bullet in front of the camera from the first snapshot.
+        var offset = new Vector3(0, 0, 12) - forward * 48;
+        var clearance = TracePath(shot, bullet, bullet + offset);
+        if (clearance == null || clearance.Value.IsAllSolid) return bullet;
+        return bullet + offset * Math.Clamp(clearance.Value.DidHit ? clearance.Value.Fraction - 0.08f : 1f, 0f, 1f);
     }
 
     public static void WeaponEquip(EventItemEquip e)
