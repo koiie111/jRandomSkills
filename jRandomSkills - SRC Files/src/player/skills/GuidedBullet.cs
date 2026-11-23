@@ -3,19 +3,24 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 using src.utils;
 using System.Drawing;
+using System.Numerics;
+using Vector = CounterStrikeSharp.API.Modules.Utils.Vector;
+using TraceHit = global::jRandomSkills.src.utils.CustomTraceResult;
 
 namespace src.player.skills;
 
 public sealed class GuidedBullet : ISkill
 {
     private const int MaxFlights = 2;
-    private const int StepTicks = 4;
     private const float CameraFollowSeconds = 0.15f;
+    private const float SteeringSmoothingSeconds = 0.045f;
+    private const float SkyClearance = 0.25f;
     private const ulong FlightMask = (ulong)(Contents.Solid | Contents.WorldGeometry | Contents.StaticLevel |
         Contents.Window | Contents.PassBullets | Contents.PhysicsProp | Contents.CsgoMoveable |
         Contents.Player | Contents.Hitbox | Contents.Sky);
     internal const float DefaultDuration = 8f;
-    internal const float DefaultSpeed = 550f;
+    internal const float DefaultSpeed = 360f;
+    internal const int DefaultsVersion = 2;
     private const float MaxDuration = 12f;
     private const float ArmSeconds = 5f;
     private const string CameraModel = "models/sprays/spray_plane.vmdl";
@@ -38,8 +43,11 @@ public sealed class GuidedBullet : ISkill
         public uint CameraHandle { get; set; }
         public CDynamicProp? Bullet { get; set; }
         public uint OriginalView { get; set; }
-        public Vector? Position { get; set; }
-        public int NextStep { get; set; }
+        public Vector3 Position { get; set; }
+        public Vector3 Heading { get; set; }
+        public Vector TraceStart { get; } = new();
+        public Vector TraceEnd { get; } = new();
+        public float SteeringBlend { get; } = 1f - MathF.Exp(-Server.TickInterval / SteeringSmoothingSeconds);
         public int LaunchTick { get; set; }
         public int EndTick { get; set; }
         public float Speed { get; set; }
@@ -87,7 +95,6 @@ public sealed class GuidedBullet : ISkill
         foreach (uint key in iterationKeys)
         {
             if (!shots.TryGetValue(key, out var shot)) continue;
-            if (shot.Camera != null && tick < shot.NextStep && tick < shot.EndTick) continue;
             if (SkillPackPlayers.LivePawn(shot.Player)?.EntityHandle.Raw != shot.PawnHandle ||
                 shot.Pawn.WeaponServices?.ActiveWeapon.Raw != shot.GunHandle ||
                 shot.Gun.InReload || shot.Gun.NextPrimaryAttackTick != shot.FireLockUntil ||
@@ -174,10 +181,10 @@ public sealed class GuidedBullet : ISkill
         shot.CameraHandle = camera.EntityHandle.Raw;
         shot.Bullet = bullet;
         shot.OriginalView = services.ViewEntity.Raw;
-        shot.Position = start;
+        shot.Position = (Vector3)start;
         shot.LaunchTick = tick;
         shot.EndTick = tick + shot.DurationTicks;
-        shot.NextStep = tick + StepTicks;
+        shot.Heading = new Vector3(angles.X, angles.Y, 0);
         shot.Speed = Math.Clamp(SkillsInfo.GetValue<float>(Skills.GuidedBullet, "Speed"), 100, 1800);
         shot.Damage = Math.Clamp(SkillsInfo.GetValue<int>(Skills.GuidedBullet, "Damage"), 1, 1000);
         flying++;
@@ -191,12 +198,35 @@ public sealed class GuidedBullet : ISkill
 
     private static void Step(uint key, Shot shot, int tick)
     {
-        shot.NextStep = tick + StepTicks;
-        var start = shot.Position!;
-        var angles = shot.Pawn.V_angle;
-        var forward = SkillUtils.GetForwardVector(angles);
-        var end = start + forward * (shot.Speed * StepTicks * Server.TickInterval);
-        var path = RayTrace.TraceShape(shot.Player, start, end, FlightMask, allowDebugBeam: false);
+        var start = shot.Position;
+        var aim = shot.Pawn.V_angle;
+        var angles = shot.Heading;
+        angles.X += (aim.X - angles.X) * shot.SteeringBlend;
+        angles.Y = MathF.IEEERemainder(angles.Y + MathF.IEEERemainder(aim.Y - angles.Y, 360f) * shot.SteeringBlend, 360f);
+        shot.Heading = angles;
+
+        const float RadiansPerDegree = MathF.PI / 180f;
+        var (sinPitch, cosPitch) = MathF.SinCos(angles.X * RadiansPerDegree);
+        var (sinYaw, cosYaw) = MathF.SinCos(angles.Y * RadiansPerDegree);
+        var forward = new Vector3(cosPitch * cosYaw, cosPitch * sinYaw, -sinPitch);
+        var movement = forward * (shot.Speed * Server.TickInterval);
+        var end = start + movement;
+        var path = TracePath(shot, start, end);
+        if (path is { DidHit: true, IsAllSolid: false } sky && IsSkyBoundary(sky))
+        {
+            // Keep the camera inside the map, but let the player steer along the sky and back down.
+            var normal = sky.Normal;
+            var alongSky = (movement - normal * Vector3.Dot(movement, normal)) * (1f - sky.Fraction);
+            start = sky.EndPos + normal * SkyClearance;
+            end = start + alongSky;
+            path = TracePath(shot, start, end);
+            if (path is { DidHit: true, IsAllSolid: false } edge && IsSkyBoundary(edge))
+            {
+                // A map corner can put a second sky plane across the slide.
+                MoveCamera(shot, start, angles, forward, tick);
+                return;
+            }
+        }
         if (path == null || path.Value.IsAllSolid || path.Value.DidHit)
         {
             Stop(key);
@@ -212,16 +242,40 @@ public sealed class GuidedBullet : ISkill
             return;
         }
 
+        MoveCamera(shot, end, angles, forward, tick);
+    }
+
+    private static bool IsSkyBoundary(TraceHit hit)
+    {
+        if ((hit.HitContents & Contents.Sky) != 0) return true;
+
+        // Maps can use a non-solid player clip ceiling below the sky material.
+        return hit.NormalZ < -0.7f
+            && (hit.HitContents & Contents.PlayerClip) != 0
+            && (hit.HitContents & Contents.Solid) == 0;
+    }
+
+    private static TraceHit? TracePath(Shot shot, Vector3 start, Vector3 end)
+    {
+        // Reuse native buffers at tick rate for both the projectile and camera traces.
+        shot.TraceStart.X = start.X;
+        shot.TraceStart.Y = start.Y;
+        shot.TraceStart.Z = start.Z;
+        shot.TraceEnd.X = end.X;
+        shot.TraceEnd.Y = end.Y;
+        shot.TraceEnd.Z = end.Z;
+        return RayTrace.TraceShape(shot.Player, shot.TraceStart, shot.TraceEnd, FlightMask, allowDebugBeam: false);
+    }
+
+    private static void MoveCamera(Shot shot, Vector3 end, Vector3 angles, Vector3 forward, int tick)
+    {
         shot.Position = end;
         float follow = Math.Min(1f, (tick - shot.LaunchTick) * Server.TickInterval / CameraFollowSeconds);
-        var cameraTarget = end + (new Vector(0, 0, 12) - forward * 48) * follow;
-        var clearance = RayTrace.TraceShape(shot.Player, end, cameraTarget, FlightMask, allowDebugBeam: false);
+        var cameraTarget = end + (new Vector3(0, 0, 12) - forward * 48) * follow;
+        var clearance = TracePath(shot, end, cameraTarget);
         if (clearance == null || clearance.Value.IsAllSolid)
-        {
-            Stop(key);
-            return;
-        }
-        if (clearance.Value.DidHit)
+            cameraTarget = end;
+        else if (clearance.Value.DidHit)
             cameraTarget = end + (cameraTarget - end) * Math.Max(0, clearance.Value.Fraction - 0.08f);
 
         shot.Camera!.Teleport(cameraTarget, angles);
@@ -286,7 +340,7 @@ public sealed class GuidedBullet : ISkill
     public sealed class SkillConfig() : SkillsInfo.DefaultSkillInfo(Skills.GuidedBullet, color: "#ffd65e",
         disableOnFreezeTime: true, maxPerServer: 2, rarity: src.utils.Rarity.Rare)
     {
-        public int DefaultsVersion { get; set; } = 1;
+        public int DefaultsVersion { get; set; } = GuidedBullet.DefaultsVersion;
         public float Duration { get; set; } = DefaultDuration;
         public float Speed { get; set; } = DefaultSpeed;
         public int Damage { get; set; } = 75;

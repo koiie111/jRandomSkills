@@ -2663,8 +2663,8 @@
   },
   {
     "Duration": 8.0,
-    "DefaultsVersion": 1,
-    "Speed": 550.0,
+    "DefaultsVersion": 2,
+    "Speed": 360.0,
     "Damage": 75,
     "NeedsTeammates": false,
     "DisableOnFreezeTime": true,

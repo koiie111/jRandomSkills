@@ -45,7 +45,7 @@ internal static partial class Hud
         public long LastStatusSample { get; set; }
         public string RawStatus { get; set; } = "";
         public string Status { get; set; } = "";
-        public (Skills Skill, Skills Special, float? Chance, string Language, bool Observer, bool Drawing, bool ShowDescription, bool Obscured, SkillChoice? Choice)? Card { get; set; }
+        public (Skills Skill, Skills Special, float? Chance, string Language, bool Observer, bool Drawing, bool ShowDescription, bool FullDescription, bool Obscured, SkillChoice? Choice)? Card { get; set; }
     }
 
     private const int PageSize = 6;
@@ -208,8 +208,9 @@ internal static partial class Hud
             return;
         }
 
+        bool fullDescription = Config.LoadedConfig.DisplayAlwaysDescription;
         var key = (info.Skill, info.SpecialSkill, info.SkillChance, Localization.GetLangCode(player),
-            observed != null, info.IsDrawing, showDescription, Illiterate.CheckIlliterateSkill(player), info.HudChoice);
+            observed != null, info.IsDrawing, showDescription, fullDescription, Illiterate.CheckIlliterateSkill(player), info.HudChoice);
         bool cardChanged = viewer.Card != key;
         if (cardChanged)
         {
@@ -220,7 +221,7 @@ internal static partial class Hud
                 name = $"{player.GetSkillName(info.SpecialSkill)} · {name}";
             var (icon, kind) = SkillPresentation.Category(skill);
             Write(player, viewer, "jrs_name", name);
-            var description = !showDescription || skill == Skills.None ? "" : Description(player, skill, info.SkillChance, compact: true);
+            var description = !showDescription || skill == Skills.None ? "" : Description(player, skill, info.SkillChance, compact: !fullDescription);
             Write(player, viewer, "jrs_description", description);
             SetClass(player, viewer, "jrs_effect", "jrs-shown", description.Length > 0);
             Write(player, viewer, "jrs_kind", skill == Skills.None ? "" : T(player, kind));

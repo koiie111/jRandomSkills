@@ -56,9 +56,6 @@ namespace src.utils
                     }
                 }
 
-                if (newConfig.DisplayAlwaysDescription)
-                    newConfig.SkillDescriptionDuration = 9999;
-
                 debugFlags = DebugCategories.Parse(newConfig.DebugMode);
                 ApplyRarityTables(newConfig);
                 return config = newConfig;
@@ -202,7 +199,7 @@ namespace src.utils
                 SkillTimeBeforeStart = 7;
                 SkillHudDuration = -1;
                 SkillDescriptionDuration = 7;
-                DisplayAlwaysDescription = false;
+                DisplayAlwaysDescription = true;
                 TraceRayBeam = false;
                 DisableSpectateHUD = false;
                 HideHudForOtherPlugins = true;

@@ -1,4 +1,4 @@
-﻿using CounterStrikeSharp.API.Modules.Utils;
+using CounterStrikeSharp.API.Modules.Utils;
 using System.Numerics;
 using Vector = CounterStrikeSharp.API.Modules.Utils.Vector;
 
@@ -25,6 +25,7 @@ namespace jRandomSkills.src.utils
         public ulong InteractsWith;
         public ulong InteractsExclude;
         public bool DrawBeam;
+        public Contents HitContents;
 
         public CustomTraceResult(TraceResult result, Vector startPos, ulong mask, ulong contents, bool drawBeam)
         {
@@ -49,6 +50,7 @@ namespace jRandomSkills.src.utils
             InteractsWith = mask;
             InteractsExclude = contents;
             DrawBeam = drawBeam;
+            HitContents = result.Contents;
         }
 
         public readonly Vector3 StartPos => new(StartPosX, StartPosY, StartPosZ);

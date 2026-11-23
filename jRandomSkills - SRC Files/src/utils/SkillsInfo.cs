@@ -79,21 +79,21 @@ namespace src.utils
                             {
                                 if (HasMissingKeys(current, instance)) needsRewrite = true;
 
-                                // Update the old Guided Bullet defaults while preserving other configured values.
-                                if (name == nameof(Skills.GuidedBullet) && current[nameof(player.skills.GuidedBullet.SkillConfig.DefaultsVersion)] == null)
+                                if (name == nameof(Skills.GuidedBullet))
                                 {
-                                    if (current["Duration"] is JValue duration
-                                        && duration.Type is JTokenType.Integer or JTokenType.Float
-                                        && duration.Value<float>() == 3f)
+                                    var versionKey = nameof(player.skills.GuidedBullet.SkillConfig.DefaultsVersion);
+                                    var storedVersion = current[versionKey];
+                                    var version = storedVersion?.Type == JTokenType.Integer ? storedVersion.Value<int>() : 0;
+                                    if (version < player.skills.GuidedBullet.DefaultsVersion)
                                     {
-                                        current["Duration"] = player.skills.GuidedBullet.DefaultDuration;
-                                        needsRewrite = true;
-                                    }
-                                    if (current["Speed"] is JValue speed
-                                        && speed.Type is JTokenType.Integer or JTokenType.Float
-                                        && speed.Value<float>() == 750f)
-                                    {
-                                        current["Speed"] = player.skills.GuidedBullet.DefaultSpeed;
+                                        if (version == 0 && IsNumber(current["Duration"], 3f))
+                                            current["Duration"] = player.skills.GuidedBullet.DefaultDuration;
+
+                                        if ((version == 0 && IsNumber(current["Speed"], 750f)) ||
+                                            (version == 1 && IsNumber(current["Speed"], 550f)))
+                                            current["Speed"] = player.skills.GuidedBullet.DefaultSpeed;
+
+                                        current[versionKey] = player.skills.GuidedBullet.DefaultsVersion;
                                         needsRewrite = true;
                                     }
                                 }
@@ -138,6 +138,9 @@ namespace src.utils
                 return config = newConfig;
             }
         }
+
+        private static bool IsNumber(JToken? token, float expected) =>
+            token is JValue { Type: JTokenType.Integer or JTokenType.Float } value && value.Value<float>() == expected;
 
         private static bool HasMissingKeys(JObject current, DefaultSkillInfo expectedInstance)
         {
