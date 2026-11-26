@@ -4,6 +4,7 @@ using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 using CounterStrikeSharp.API.Modules.Utils;
 using src.utils;
 using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
 
 namespace src.player.skills
 {
@@ -48,12 +49,12 @@ namespace src.player.skills
             if (holders.IsEmpty) return;
 
             if (!TryResolveVictim(damagedEntity, damageInfo, out var victim, out var victimPawn, out var info)) return;
-            if (!holders.ContainsKey(victim!.Key())) return;
+            if (!holders.ContainsKey(victim.Key())) return;
 
-            int armor = victimPawn!.ArmorValue;
+            int armor = victimPawn.ArmorValue;
             if (armor <= 0) return;
 
-            float damage = info!.Damage;
+            float damage = info.Damage;
             if (damage <= 0) return;
 
             float ratio = SkillsInfo.GetValue<float>(skillName, "armorShare");
@@ -79,9 +80,9 @@ namespace src.player.skills
             if (pending.IsEmpty) return;
 
             if (!TryResolveVictim(damagedEntity, damageInfo, out var victim, out var victimPawn, out _)) return;
-            if (!pending.TryRemove(victim!.Key(), out var restored)) return;
+            if (!pending.TryRemove(victim.Key(), out var restored)) return;
 
-            victimPawn!.ArmorValue = restored.Armor;
+            victimPawn.ArmorValue = restored.Armor;
             Utilities.SetStateChanged(victimPawn, "CCSPlayerPawn", "m_ArmorValue");
 
             if (!restored.HasHelmet) return;
@@ -100,7 +101,9 @@ namespace src.player.skills
 
         private readonly record struct PendingArmor(int Armor, bool HasHelmet);
 
-        private static bool TryResolveVictim(CBaseEntity damagedEntity, CTakeDamageInfo damageInfo, out CCSPlayerController? victim, out CCSPlayerPawn? pawn, out CTakeDamageInfo? info)
+        private static bool TryResolveVictim(CBaseEntity damagedEntity, CTakeDamageInfo damageInfo,
+            [NotNullWhen(true)] out CCSPlayerController? victim, [NotNullWhen(true)] out CCSPlayerPawn? pawn,
+            [NotNullWhen(true)] out CTakeDamageInfo? info)
         {
             victim = null;
             pawn = null;

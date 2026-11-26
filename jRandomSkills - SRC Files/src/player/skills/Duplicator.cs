@@ -2,7 +2,6 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 using src.utils;
-using System.Collections.Concurrent;
 using static src.jRandomSkills;
 
 namespace src.player.skills
@@ -36,10 +35,8 @@ namespace src.player.skills
             var playerEvent = PlayerManager.GetPlayerFromEvent(player);
             if (playerEvent == null || !playerEvent.IsValid) return;
 
-            string enemyId = commands[0];
-            var enemy = PlayerManager.GetTickPlayers().FirstOrDefault(p => p.Key().ToString() == enemyId);
-
-            if (enemy == null)
+            if (commands.Length == 0 || !uint.TryParse(commands[0], out var key)
+                || PlayerManager.GetController(key) is not { IsValid: true } enemy)
             {
                 playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
                 return;
@@ -48,22 +45,21 @@ namespace src.player.skills
             DuplicateSkill(player, enemy);
         }
 
-        private static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
+        internal static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
         {
-            var enemies = PlayerManager.GetTickPlayers().Where(p => p != null && p.IsValid).Select(p => PlayerManager.GetPlayerEvent(p)).Where(p => p != null && p.IsValid && p.Key() != player.Key() && p.PlayerPawn?.Value != null && p.PlayerPawn.Value.IsValid && p.PlayerPawn.Value.Health > 0 && !p.IsHLTV && p.Team != CsTeam.Spectator && p.Team != CsTeam.None).ToArray();
+            foreach (var candidate in CopyCandidates(player))
+                if (SkillUtils.CanUseTeamSkill(player, candidate.Skill))
+                    yield return ($"\u202A{candidate.Player.PlayerName}\u202C : {player.GetSkillName(candidate.Skill)}", candidate.Player.Key().ToString());
+        }
 
-            ConcurrentBag<(string, string)> menuItems = [];
-            foreach (var enemy in enemies)
+        private static IEnumerable<(CCSPlayerController Player, Skills Skill)> CopyCandidates(CCSPlayerController player)
+        {
+            foreach (var candidate in SkillUtils.GetLivingPeers(player))
             {
-                var enemyInfo = PlayerManager.GetPlayer(enemy);
-                if (enemyInfo == null) continue;
-
-                var skillData = SkillData.Skills.FirstOrDefault(s => s.Skill == enemyInfo.Skill);
-                if (skillData == null) continue;
-
-                menuItems.Add(($"\u202A{enemy!.PlayerName}\u202C : {player.GetSkillName(skillData.Skill)}", enemy.Key().ToString()));
+                if (PlayerManager.GetPlayer(candidate) is not { IsDrawing: false } info
+                    || info.Skill is Skills.None or skillName || SkillData.GetInfo(info.Skill) == null) continue;
+                yield return (candidate, info.Skill);
             }
-            return menuItems;
         }
 
         public static void EnableSkill(CCSPlayerController player)
@@ -71,18 +67,16 @@ namespace src.player.skills
             var playerEvent = PlayerManager.GetPlayerFromEvent(player);
             if (playerEvent == null || !playerEvent.IsValid) return;
 
-            var targets = GetTargets(player).ToArray();
-            if (targets.Length > 0 && targets.All(target =>
-                uint.TryParse(target.Item2, out var key) && PlayerManager.GetPlayerByKey(key) is { } info
-                && (player.Team == CsTeam.Terrorist ? Event.counterterroristSkills : Event.terroristSkills)
-                    .Any(skill => skill.Name == info.Skill.ToString())))
+            var candidates = CopyCandidates(player).ToArray();
+            if (candidates.Length > 0 && candidates.All(candidate => !SkillUtils.CanUseTeamSkill(player, candidate.Skill))
+                && !Event.staticSkills.ContainsKey(player.Key()))
             {
                 Event.SetRandomSkill(player);
                 return;
             }
 
             if (PlayerManager.GetPlayer(player) is { } playerInfo) playerInfo.SkillUsed = false;
-            SkillUtils.CreateTargetMenu(player, GetTargets);
+            SkillUtils.CreateTargetMenu(player, skillName);
             SkillUtils.PrintToChat(player, $"{ChatColors.DarkRed}{playerEvent.GetSkillName(skillName)}{ChatColors.Lime}: {playerEvent.GetSkillDescription(skillName)}",
                 border: !PlayerManager.GetTickPlayers().Any(p => p.Team == player.Team && p != player) ? "tb" : "t");
         }
@@ -105,48 +99,11 @@ namespace src.player.skills
             if (playerEvent == null || !playerEvent.IsValid) return;
 
             var enemySkill = enemyInfo.Skill;
-            bool ctSkill = Event.counterterroristSkills.Any(s => s.Name == enemySkill.ToString());
-            bool ttSkill = Event.terroristSkills.Any(s => s.Name == enemySkill.ToString());
-
-            uint playerIndex = player.Key();
-            string enemyName = enemy.PlayerName;
-
-            if ((player.Team == CsTeam.Terrorist && ctSkill) || (player.Team == CsTeam.CounterTerrorist && ttSkill))
-            {
-                Instance.AddTimer(.1f, () =>
-                {
-                    var player = PlayerManager.GetController(playerIndex);
-                    if (player == null || !player.IsValid) return;
-
-                    if (!player.IsBot)
-                        Instance.SkillAction(skillName.ToString(), "EnableSkill", [player]);
-
-                    playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("thief_incorrect_skill", enemyName));
-                }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
-                return;
-            }
-
             SkillUtils.CloseMenu(player);
-            Instance.AddTimer(.1f, () =>
-            {
-                playerInfo.Skill = enemySkill;
-                playerInfo.SpecialSkill = skillName;
-                playerInfo.HudChoice = new(Name: enemyName);
-                SkillUtils.CloseMenu(player);
-
-                if (SkillsInfo.GetValue<bool>(enemySkill, "disableOnFreezeTime") && SkillUtils.IsFreezeTime())
-                    Instance?.AddTimer(Math.Max((float)(Event.GetFreezeTimeEnd() - DateTime.Now).TotalSeconds, 0), () =>
-                    {
-                        var player = PlayerManager.GetController(playerIndex);
-                        if (player == null || !player.IsValid) return;
-
-                        var dupInfo = PlayerManager.GetPlayer(player);
-                        if (dupInfo == null || dupInfo.Skill != enemySkill) return;
-                        Instance?.SkillAction(enemySkill.ToString(), "EnableSkill", [player]);
-                    }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
-                else
-                    Instance?.SkillAction(enemySkill.ToString(), "EnableSkill", [player]);
-            }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
+            playerInfo.Skill = enemySkill;
+            playerInfo.SpecialSkill = skillName;
+            playerInfo.HudChoice = new(Name: enemy.PlayerName);
+            SkillUtils.EnableAcquiredSkill(player, playerInfo);
             playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("duplicator_player_info", enemy.PlayerName));
         }
 

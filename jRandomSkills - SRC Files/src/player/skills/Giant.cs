@@ -45,7 +45,7 @@ namespace src.player.skills
             }
         }
 
-        private static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
+        internal static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
         {
             var enemies = GetSelectableEnemies(player);
             return enemies.Select(e => (e.PlayerName, e.Key().ToString()));
@@ -64,7 +64,7 @@ namespace src.player.skills
             var playerEvent = PlayerManager.GetPlayerFromEvent(player);
             if (playerEvent == null || !playerEvent.IsValid) return;
 
-            SkillUtils.CreateTargetMenu(player, GetTargets);
+            SkillUtils.CreateTargetMenu(player, skillName);
         }
 
         public static void TypeSkill(CCSPlayerController player, string[] commands)

@@ -2,7 +2,6 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 using static src.jRandomSkills;
-using System.Collections.Concurrent;
 using src.utils;
 
 namespace src.player.skills
@@ -55,20 +54,18 @@ namespace src.player.skills
             DeacitvateSkill(player, enemy);
         }
 
-        private static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
+        internal static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
         {
             var enemies = SkillUtils.GetSelectableEnemies(player, true);
 
-            ConcurrentBag<(string, string)> menuItems = [];
             foreach (var enemy in enemies)
             {
                 var enemyInfo = PlayerManager.GetPlayer(enemy);
-                if (enemyInfo == null) continue;
-                var skillData = SkillData.Skills.FirstOrDefault(s => s.Skill == enemyInfo.Skill);
+                if (enemyInfo == null || enemyInfo.IsDrawing || enemyInfo.Skill == Skills.None) continue;
+                var skillData = SkillData.GetInfo(enemyInfo.Skill);
                 if (skillData == null) continue;
-                menuItems.Add(($"\u202A{enemy.PlayerName}\u202C : {player.GetSkillName(skillData.Skill)}", enemy.Key().ToString()));
+                yield return ($"\u202A{enemy.PlayerName}\u202C : {player.GetSkillName(skillData.Skill)}", enemy.Key().ToString());
             }
-            return menuItems;
         }
 
         public static void EnableSkill(CCSPlayerController player)
@@ -77,7 +74,7 @@ namespace src.player.skills
             if (playerEvent == null || !playerEvent.IsValid) return;
 
             if (PlayerManager.GetPlayer(player) is { } playerInfo) playerInfo.SkillUsed = false;
-            SkillUtils.CreateTargetMenu(player, GetTargets);
+            SkillUtils.CreateTargetMenu(player, skillName);
         }
 
         public static void DisableSkill(CCSPlayerController player)

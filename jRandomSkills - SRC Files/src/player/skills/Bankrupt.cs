@@ -23,11 +23,11 @@ namespace src.player.skills
             }
         }
 
-        private static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
+        internal static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
         {
             var enemies = SkillUtils.GetSelectableEnemies(player, true);
             return enemies.Select(enemy =>
-                ($"‪{enemy.PlayerName}‬ : {enemy.InGameMoneyServices?.Account ?? 0}$", enemy.Key().ToString()));
+                ($"\u202A{enemy.PlayerName}\u202C : {enemy.InGameMoneyServices?.Account ?? 0}$", enemy.Key().ToString()));
         }
 
         public static void EnableSkill(CCSPlayerController player)
@@ -39,7 +39,7 @@ namespace src.player.skills
 
             playerInfo.SkillUsed = false;
 
-            SkillUtils.CreateTargetMenu(player, GetTargets);
+            SkillUtils.CreateTargetMenu(player, skillName);
         }
 
         public static void TypeSkill(CCSPlayerController player, string[] commands)

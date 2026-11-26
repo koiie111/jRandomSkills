@@ -62,7 +62,7 @@ namespace src.player.skills
                 enemyEvent.Notify($" {ChatColors.Red}" + enemyEvent.GetTranslation("moneyswap_enemy_info"));
         }
 
-        private static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
+        internal static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
         {
             var enemies = SkillUtils.GetSelectableEnemies(player, true);
 
@@ -75,7 +75,7 @@ namespace src.player.skills
             if (playerInfo == null) return;
             playerInfo.SkillUsed = false;
 
-            SkillUtils.CreateTargetMenu(player, GetTargets);
+            SkillUtils.CreateTargetMenu(player, skillName);
         }
 
         private static void SwapMoney(CCSPlayerController player, CCSPlayerController enemy)

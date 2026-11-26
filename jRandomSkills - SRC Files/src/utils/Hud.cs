@@ -26,7 +26,7 @@ internal static partial class Hud
         public bool Obscured { get; init; }
     }
 
-    private sealed class TargetPicker(Skills skill, Func<CCSPlayerController, IEnumerable<(string, string)>> getTargets)
+    internal sealed class TargetPicker(Skills skill, Func<CCSPlayerController, IEnumerable<(string, string)>> getTargets)
     {
         public Skills Skill { get; } = skill;
         public Func<CCSPlayerController, IEnumerable<(string, string)>> GetTargets { get; } = getTargets;
@@ -78,8 +78,7 @@ internal static partial class Hud
         {
             if (typeof(ISkill).IsAssignableFrom(type) && Enum.TryParse<Skills>(type.Name, out var skill)
                 && (type.GetMethod("UseSkill", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly) != null
-                    || skill == Skills.Partner
-                    || (skill is not (Skills.Gambler or Skills.AreaReaper) && SkillPresentation.Action(skill, false) == "jrs_pick")))
+                    || SkillUtils.TargetProvider(skill) != null))
                 BoundSkills.Add(skill);
         }
 
@@ -99,6 +98,7 @@ internal static partial class Hud
                 CloseModal(player);
                 passive?.Close(player);
             }
+            ClearTargetPickers();
             Viewers.Clear();
             previousRound = [];
         });
@@ -445,17 +445,20 @@ internal static partial class Hud
     internal static void HideHud(CCSPlayerController player)
     {
         var viewer = For(player);
-        if (viewer.Target is { } target)
+        var target = PlayerManager.GetPlayer(PlayerManager.GetPlayerEvent(player))?.TargetPicker;
+        if (target != null)
         {
             target.Explicit = false;
             HidePicker(player, viewer);
         }
 
-        CloseModal(player, preservePicker: viewer.Target != null);
+        CloseModal(player, preservePicker: target != null);
     }
 
     private static void CloseModal(CCSPlayerController player, bool preservePicker = false)
     {
+        if (!preservePicker && PlayerManager.GetPlayer(PlayerManager.GetPlayerEvent(player)) is { } info)
+            info.TargetPicker = null;
         if (!Viewers.TryGetValue(player.Slot, out var viewer) || viewer.Key != player.Key()) return;
         viewer.Pending = null;
         if (!preservePicker)
@@ -469,17 +472,23 @@ internal static partial class Hud
 
     internal static void ClearTargetPickers()
     {
+        foreach (var info in PlayerManager.GetAllPlayers()) info.TargetPicker = null;
         foreach (var player in PlayerManager.GetTickPlayers())
-            if (player.IsValid && Viewers.TryGetValue(player.Slot, out var viewer) && viewer.Target != null)
-                ClosePicker(player);
+        {
+            if (!player.IsValid || !Viewers.TryGetValue(player.Slot, out var viewer) || viewer.Target == null) continue;
+            viewer.Target = null;
+            HidePicker(player, viewer);
+        }
     }
 
     public static void ClosePicker(CCSPlayerController? player)
     {
-        if (player is not { IsValid: true } || !Viewers.TryGetValue(player.Slot, out var viewer)
-            || viewer.Key != player.Key()) return;
+        if (player is not { IsValid: true }) return;
+        if (PlayerManager.GetPlayer(player) is { } info) info.TargetPicker = null;
+        var recipient = PlayerManager.GetPlayerFromEvent(player);
+        if (recipient == null || !Viewers.TryGetValue(recipient.Slot, out var viewer) || viewer.Key != recipient.Key()) return;
         viewer.Target = null;
-        HidePicker(player, viewer);
+        HidePicker(recipient, viewer);
     }
 
     private static void HidePicker(CCSPlayerController player, Viewer viewer)
@@ -494,22 +503,35 @@ internal static partial class Hud
         Func<CCSPlayerController, IEnumerable<(string, string)>> getTargets)
     {
         if (player is not { IsValid: true } || PlayerManager.GetPlayer(player) is not { } info) return;
-        if (player.IsBot)
-        {
-            CreatePicker(player, getTargets(player), null);
-            return;
-        }
-
-        var viewer = For(player);
-        HidePicker(player, viewer);
-        viewer.Target = new TargetPicker(info.Skill, getTargets);
-        RefreshTargetPicker(player, viewer);
+        info.TargetPicker = new TargetPicker(info.Skill, getTargets);
+        var recipient = PlayerManager.GetPlayerFromEvent(player);
+        if (recipient != null && Valid(recipient)) RefreshTargetPicker(recipient, For(recipient));
     }
 
-    internal static bool ReopenTargetPicker(CCSPlayerController player)
+    internal static void RefreshBotTargetPicker(CCSPlayerController bot)
     {
+        if (PlayerManager.GetPlayer(bot) is not { TargetPicker: { } target } info) return;
+        long now = Environment.TickCount64;
+        if (now < target.NextRefresh || PlayerManager.GetPlayerFromEvent(bot) is not { IsBot: true }) return;
+        target.NextRefresh = now + 500;
+        if (info.SkillUsed)
+        {
+            info.TargetPicker = null;
+            return;
+        }
+        if (!bot.PawnIsAlive || info.IsDrawing
+            || (SkillsInfo.GetValue<bool>(target.Skill, "disableOnFreezeTime") && SkillUtils.IsFreezeTime())) return;
+        var choices = target.GetTargets(bot).ToArray();
+        if (choices.Length > 0)
+            jRandomSkills.Instance.SkillAction(target.Skill.ToString(), "TypeSkill",
+                [bot, new[] { choices[Random.Shared.Next(choices.Length)].Item2 }]);
+    }
+
+    internal static bool ReopenTargetPicker(CCSPlayerController actor)
+    {
+        var player = PlayerManager.GetPlayerFromEvent(actor);
+        if (player is not { IsValid: true, IsBot: false } || PlayerManager.GetPlayer(actor)?.TargetPicker is not { } target) return false;
         var viewer = For(player);
-        if (viewer.Target is not { } target || PlayerManager.GetPlayer(player)?.Skill != target.Skill) return false;
         target.Dismissed = false;
         target.Explicit = true;
         target.NextRefresh = 0;
@@ -522,11 +544,18 @@ internal static partial class Hud
 
     private static void RefreshTargetPicker(CCSPlayerController player, Viewer viewer)
     {
-        if (viewer.Target is not { } target) return;
-        var info = PlayerManager.GetPlayer(PlayerManager.GetPlayerEvent(player) ?? player);
-        if (info?.Skill != target.Skill || info.SkillUsed)
+        var actor = PlayerManager.GetPlayerEvent(player);
+        var info = PlayerManager.GetPlayer(actor);
+        var target = info?.TargetPicker;
+        if (!ReferenceEquals(viewer.Target, target))
         {
-            ClosePicker(player);
+            if (viewer.Target != null) HidePicker(player, viewer);
+            viewer.Target = target;
+        }
+        if (target == null || actor == null || info == null) return;
+        if (info.SkillUsed)
+        {
+            ClosePicker(actor);
             return;
         }
 
@@ -545,7 +574,7 @@ internal static partial class Hud
         long now = Environment.TickCount64;
         if (now < target.NextRefresh) return;
         target.NextRefresh = now + 500;
-        var items = target.GetTargets(player).OrderBy(item => item.Item2, StringComparer.Ordinal).ToArray();
+        var items = target.GetTargets(actor).OrderBy(item => item.Item2, StringComparer.Ordinal).ToArray();
         if (items.Length == 0)
         {
             HidePicker(player, viewer);
@@ -572,7 +601,7 @@ internal static partial class Hud
     private static void CreatePicker(CCSPlayerController? player, IEnumerable<(string, string)> items,
         (string Text, string Value, bool Close)? extra, TargetPicker? target)
     {
-        if (player is not { IsValid: true } || PlayerManager.GetPlayer(player) is not { } info
+        if (player is not { IsValid: true } || PlayerManager.GetPlayer(PlayerManager.GetPlayerEvent(player)) is not { } info
             || (info.HideHUD >= Server.TickCount && target?.Explicit != true && !player.IsBot)) return;
 
         var targets = items.ToArray();
@@ -588,34 +617,31 @@ internal static partial class Hud
         }
         var skill = info.Skill;
         var viewer = For(player);
+        if (target == null) viewer.Target = null;
         var language = Localization.GetLangCode(player);
         bool obscured = Illiterate.CheckIlliterateSkill(player);
         var options = choices.DistinctBy(item => item.Value).Select(item => new Option(
             obscured ? Illiterate.GetRandomText(item.Text) ?? "" : item.Text,
             selected =>
             {
-                var current = PlayerManager.GetPlayer(PlayerManager.GetPlayerEvent(selected) ?? selected);
-                if (!selected.PawnIsAlive || current == null || current.Skill != skill || current.IsDrawing
+                var actor = PlayerManager.GetPlayerEvent(selected);
+                var current = PlayerManager.GetPlayer(actor);
+                if (actor == null || current == null || current.Skill != skill
+                    || (target != null && !ReferenceEquals(current.TargetPicker, target))) return;
+                if (!selected.PawnIsAlive || current.IsDrawing
                     || (SkillsInfo.GetValue<bool>(skill, "disableOnFreezeTime") && SkillUtils.IsFreezeTime()))
                 {
-                    ClosePicker(selected);
+                    if (target != null) RefreshTargetPicker(selected, viewer);
+                    else ClosePicker(actor);
                     return;
                 }
+                if (target == null && item.Close) ClosePicker(actor);
+                jRandomSkills.Instance.SkillAction(skill.ToString(), "TypeSkill", [actor, new[] { item.Value }]);
                 if (target != null)
                 {
-                    if (!ReferenceEquals(viewer.Target, target)) return;
-                    if (!target.GetTargets(selected).Any(candidate => candidate.Item2 == item.Value))
-                    {
-                        target.NextRefresh = 0;
-                        RefreshTargetPicker(selected, viewer);
-                        return;
-                    }
+                    target.NextRefresh = 0;
+                    RefreshTargetPicker(selected, viewer);
                 }
-                if (target == null && item.Close) ClosePicker(selected);
-                jRandomSkills.Instance.SkillAction(skill.ToString(), "TypeSkill", [selected, new[] { item.Value }]);
-                if (target != null && ReferenceEquals(viewer.Target, target)
-                    && (current.SkillUsed || current.Skill != skill))
-                    ClosePicker(selected);
             })).ToArray();
         var body = player.GetTranslation($"{skill.ToString().ToLowerInvariant()}_select_info");
         viewer.Picker = new MenuView(player.GetSkillName(skill), body, options, skill)

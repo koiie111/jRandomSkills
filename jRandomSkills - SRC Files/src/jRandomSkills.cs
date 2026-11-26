@@ -134,6 +134,23 @@ namespace src
                 SkillsUsedThisMap.TryAdd(skill, 0);
             }
 
+            if ((methodName == "DisableSkill" || methodName == "EnableSkill") && param is [CCSPlayerController player]
+                && PlayerManager.GetPlayer(player) is { ActivateAfterFreeze: true } pending && pending.Skill.ToString() == skill)
+                pending.ActivateAfterFreeze = false;
+
+            // Validate before reserving curse capacity. Reserving the last slot can change the target list.
+            if (methodName == "TypeSkill" && param is [CCSPlayerController actor, string[] args]
+                && PlayerManager.GetPlayer(actor) is { } owner && SkillUtils.TargetProvider(owner.Skill) != null)
+            {
+                if (owner.SkillUsed || owner.IsDrawing || !actor.PawnIsAlive || owner.TargetPicker is not { } target
+                    || args.Length == 0 || !target.GetTargets(actor).Any(candidate => candidate.Item2 == args[0]))
+                {
+                    var recipient = PlayerManager.GetPlayerFromEvent(actor);
+                    recipient?.Notify($" {ChatColors.Red}{recipient.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+                    return null;
+                }
+            }
+
             if (SkillUtils.IsCurseSkill(skill))
             {
                 if (methodName == "DisableSkill" && param?.Length > 0 && param[0] is CCSPlayerController curser && curser.IsValid)
@@ -366,6 +383,8 @@ namespace src
             {
                 if (skill == value) return;
                 skill = value;
+                TargetPicker = null;
+                ActivateAfterFreeze = false;
                 HudChoice = null;
                 Event.InvalidateActiveSkills();
             }
@@ -387,6 +406,8 @@ namespace src
         public DateTime SkillDescriptionHudExpired { get; set; }
         public string? PrintHTML { get; set; }
         public int HideHUD { get; set; }
+        internal bool ActivateAfterFreeze { get; set; }
+        internal Hud.TargetPicker? TargetPicker { get; set; }
         internal Hud.SkillChoice? HudChoice { get; set; }
         public bool SkillUsed = false;
         public bool? HudOnDeathBlocked { get; set; }

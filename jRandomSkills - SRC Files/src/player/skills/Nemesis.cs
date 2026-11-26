@@ -48,7 +48,7 @@ namespace src.player.skills
             var playerEvent = PlayerManager.GetPlayerFromEvent(player);
             if (playerEvent == null || !playerEvent.IsValid) return;
 
-            SkillUtils.CreateTargetMenu(player, SkillUtils.GetEnemyMenuTargets);
+            SkillUtils.CreateTargetMenu(player, skillName);
         }
 
         public static void DisableSkill(CCSPlayerController player)

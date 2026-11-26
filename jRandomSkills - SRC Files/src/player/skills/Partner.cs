@@ -57,7 +57,7 @@ namespace src.player.skills
                 PlayerDisconnect(victim.Key());
         }
 
-        private static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
+        internal static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
         {
             var teammates = SkillUtils.GetSelectableTeammates(player);
             return teammates.Select(t => (t.PlayerName, t.Key().ToString()));
@@ -73,7 +73,7 @@ namespace src.player.skills
             var playerEvent = PlayerManager.GetPlayerFromEvent(player);
             if (playerEvent == null || !playerEvent.IsValid) return;
 
-            SkillUtils.CreateTargetMenu(player, GetTargets);
+            SkillUtils.CreateTargetMenu(player, skillName);
         }
 
         public static void DisableSkill(CCSPlayerController player)

@@ -201,7 +201,8 @@ namespace src.player.skills
         // Wipe spotted state (pawn + carried bomb) so a disguised carrier produces no radar blip.
         private static void ClearSpottedState(CCSPlayerController player, CC4? bomb)
         {
-            var pawn = player.PlayerPawn?.Value;
+            var pawnHandle = player.PlayerPawn;
+            var pawn = pawnHandle?.Value;
             if (pawn != null && pawn.IsValid)
             {
                 pawn.EntitySpottedState.Spotted = false;
@@ -209,7 +210,7 @@ namespace src.player.skills
                 pawn.EntitySpottedState.SpottedByMask[1] = 0;
             }
 
-            if (bomb != null && bomb.IsValid && bomb.OwnerEntity?.Index is uint ownerEntity && (ownerEntity == player.Index || ownerEntity == player.PlayerPawn.Index))
+            if (bomb != null && bomb.IsValid && bomb.OwnerEntity?.Index is uint ownerEntity && (ownerEntity == player.Index || ownerEntity == pawnHandle?.Index))
             {
                 bomb.EntitySpottedState.Spotted = false;
                 bomb.EntitySpottedState.SpottedByMask[0] = 0;

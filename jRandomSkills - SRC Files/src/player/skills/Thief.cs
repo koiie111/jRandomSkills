@@ -2,7 +2,6 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 using static src.jRandomSkills;
-using System.Collections.Concurrent;
 using src.utils;
 
 namespace src.player.skills
@@ -37,7 +36,6 @@ namespace src.player.skills
             if (playerEvent == null || !playerEvent.IsValid) return;
 
             if (commands == null || commands.Length == 0 || !uint.TryParse(commands[0], out uint enemyIndex)
-                || !GetTargets(player).Any(target => target.Item2 == commands[0])
                 || PlayerManager.GetController(enemyIndex) is not { IsValid: true } enemy)
             {
                 playerEvent.Notify($" {ChatColors.Red}" + playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index"));
@@ -47,22 +45,20 @@ namespace src.player.skills
             StealSkill(player, enemy);
         }
 
-        private static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
+        internal static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
         {
             var enemies = SkillUtils.GetSelectableEnemies(player, true);
 
-            ConcurrentBag<(string, string)> menuItems = [];
             foreach (var enemy in enemies)
             {
                 var enemyInfo = PlayerManager.GetPlayer(enemy);
-                if (enemyInfo == null || enemyInfo.Skill == Skills.None || !CanSteal(player, enemyInfo.Skill)) continue;
+                if (enemyInfo == null || enemyInfo.IsDrawing || enemyInfo.Skill == Skills.None || !SkillUtils.CanUseTeamSkill(player, enemyInfo.Skill)) continue;
 
-                var skillData = SkillData.Skills.FirstOrDefault(s => s.Skill == enemyInfo.Skill);
+                var skillData = SkillData.GetInfo(enemyInfo.Skill);
                 if (skillData == null) continue;
 
-                menuItems.Add(($"\u202A{enemy.PlayerName}\u202C : {player.GetSkillName(skillData.Skill)}", enemy.Key().ToString()));
+                yield return ($"\u202A{enemy.PlayerName}\u202C : {player.GetSkillName(skillData.Skill)}", enemy.Key().ToString());
             }
-            return menuItems;
         }
 
         public static void EnableSkill(CCSPlayerController player)
@@ -72,7 +68,8 @@ namespace src.player.skills
             var playerEvent = PlayerManager.GetPlayerFromEvent(player);
             if (playerEvent == null || !playerEvent.IsValid) return;
 
-            SkillUtils.CreateTargetMenu(player, GetTargets);
+            if (PlayerManager.GetPlayer(player) is { } info) info.SkillUsed = false;
+            SkillUtils.CreateTargetMenu(player, skillName);
             SkillUtils.PrintToChat(player, $"{ChatColors.DarkRed}{player.GetSkillName(skillName)}{ChatColors.Lime}: {player.GetSkillDescription(skillName)}",
                 border: !PlayerManager.GetTickPlayers().Any(p => p != null && p.Team == player.Team && p != player) ? "tb" : "t");
         }
@@ -87,10 +84,6 @@ namespace src.player.skills
             playerInfo.SpecialSkill = Skills.None;
             SkillUtils.CloseMenu(player);
         }
-
-        private static bool CanSteal(CCSPlayerController player, Skills skill) =>
-            !(player.Team == CsTeam.Terrorist && Event.counterterroristSkills.Any(s => s.Name == skill.ToString()))
-            && !(player.Team == CsTeam.CounterTerrorist && Event.terroristSkills.Any(s => s.Name == skill.ToString()));
 
         private static void StealSkill(CCSPlayerController player, CCSPlayerController enemy)
         {
@@ -114,22 +107,7 @@ namespace src.player.skills
             playerInfo.HudChoice = new(Name: enemy.PlayerName);
             playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("thief_player_info", enemy.PlayerName));
 
-            if (!SkillsInfo.GetValue<bool>(enemySkill, "disableOnFreezeTime") || !SkillUtils.IsFreezeTime())
-            {
-                Instance.SkillAction(enemySkill.ToString(), "EnableSkill", [player]);
-                return;
-            }
-
-            uint playerIndex = player.Key();
-            float delay = Math.Max((float)(Event.GetFreezeTimeEnd() - DateTime.Now).TotalSeconds, 0);
-            Instance.AddTimer(delay, () =>
-            {
-                var current = PlayerManager.GetController(playerIndex);
-                if (current is { IsValid: true, PawnIsAlive: true }
-                    && PlayerManager.GetPlayer(current) == playerInfo && playerInfo.Skill == enemySkill
-                    && playerInfo.SpecialSkill == skillName)
-                    Instance.SkillAction(enemySkill.ToString(), "EnableSkill", [current]);
-            }, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
+            SkillUtils.EnableAcquiredSkill(player, playerInfo);
         }
 
         public class SkillConfig(Skills skill = skillName, bool active = true, string color = "#adaec7", CsTeam onlyTeam = CsTeam.None, bool disableOnFreezeTime = false, bool needsTeammates = false, string requiredPermission = "", float? hudDuration = null, float? descriptionHudDuration = null, int maxPerServer = -1, Rarity rarity = Rarity.Common) : SkillsInfo.DefaultSkillInfo(skill, active, color, onlyTeam, disableOnFreezeTime, needsTeammates, requiredPermission, hudDuration, descriptionHudDuration, maxPerServer, rarity)

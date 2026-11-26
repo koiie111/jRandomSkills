@@ -92,13 +92,6 @@ namespace src.player.skills
             enemyEvent.Notify($" {ChatColors.Red}" + enemyEvent.GetTranslation("jetkick_enemy_info"));
         }
 
-        private static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
-        {
-            var enemies = PlayerManager.GetTickPlayers().Where(p => p != null && p.IsValid).Select(p => PlayerManager.GetPlayerEvent(p)).Where(p => p != null && p.IsValid && p.Team != player.Team && p.PlayerPawn?.Value != null && p.PlayerPawn.Value.IsValid && p.PlayerPawn.Value.Health > 0 && !p.IsHLTV && p.Team != CsTeam.Spectator && p.Team != CsTeam.None).OfType<CCSPlayerController>().ToArray();
-
-            return enemies.Select(e => (e.PlayerName, e.Key().ToString()));
-        }
-
         public static void EnableSkill(CCSPlayerController player)
         {
             var playerInfo = PlayerManager.GetPlayer(player);
@@ -108,7 +101,7 @@ namespace src.player.skills
             var playerEvent = PlayerManager.GetPlayerFromEvent(player);
             if (playerEvent == null || !playerEvent.IsValid) return;
 
-            SkillUtils.CreateTargetMenu(player, GetTargets);
+            SkillUtils.CreateTargetMenu(player, skillName);
         }
 
         public static void DisableSkill(CCSPlayerController player)
