@@ -57,6 +57,12 @@ namespace src.player.skills
                 PlayerDisconnect(victim.Key());
         }
 
+        private static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
+        {
+            var teammates = SkillUtils.GetSelectableTeammates(player);
+            return teammates.Select(t => (t.PlayerName, t.Key().ToString()));
+        }
+
         public static void EnableSkill(CCSPlayerController player)
         {
             var playerInfo = PlayerManager.GetPlayer(player);
@@ -67,19 +73,7 @@ namespace src.player.skills
             var playerEvent = PlayerManager.GetPlayerFromEvent(player);
             if (playerEvent == null || !playerEvent.IsValid) return;
 
-            var teammates = SkillUtils.GetSelectableTeammates(player);
-            if (teammates.Length > 0)
-            {
-                ConcurrentBag<(string, string)> menuItems = new(teammates.Select(t => (t.PlayerName, t.Key().ToString())));
-                SkillUtils.CreateMenu(player, menuItems);
-            }
-            else
-                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("partner_no_teammates")}");
-        }
-
-        public static void UseSkill(CCSPlayerController player)
-        {
-            if (PlayerManager.GetPlayer(player)?.SkillUsed == false) EnableSkill(player);
+            SkillUtils.CreateTargetMenu(player, GetTargets);
         }
 
         public static void DisableSkill(CCSPlayerController player)
@@ -136,9 +130,6 @@ namespace src.player.skills
         {
             int tick = Server.TickCount;
 
-            if (tick % 32 == 0)
-                RefreshMenus();
-
             if (bonds.IsEmpty || !SkillUtils.IsHudFrame()) return;
 
             float minDistance = Math.Max(0f, SkillsInfo.GetValue<float>(skillName, "minDistance"));
@@ -192,20 +183,6 @@ namespace src.player.skills
 
             float fraction = (distance - minDistance) / (maxDistance - minDistance);
             return Math.Clamp(Levels - (int)(fraction * Levels), 1, Levels);
-        }
-
-        private static void RefreshMenus()
-        {
-            foreach (var player in PlayerManager.GetTickPlayers())
-            {
-                var playerInfo = PlayerManager.GetPlayer(player);
-                if (playerInfo == null || playerInfo.Skill != skillName) continue;
-                if (!SkillUtils.HasMenu(player)) continue;
-
-                var teammates = SkillUtils.GetSelectableTeammates(player);
-                ConcurrentBag<(string, string)> menuItems = new(teammates.Select(t => (t.PlayerName, t.Key().ToString())));
-                SkillUtils.UpdateMenu(player, menuItems);
-            }
         }
 
         public class SkillConfig(Skills skill = skillName, bool active = true, string color = "#ff7eb6", CsTeam onlyTeam = CsTeam.None, bool disableOnFreezeTime = false, bool needsTeammates = true, string requiredPermission = "", float? hudDuration = null, float? descriptionHudDuration = null, int maxPerServer = -1, Rarity rarity = Rarity.Common, float minDistance = 75f, float maxDistance = 450f, int minHeal = 1, int maxHeal = 5, int tickCooldown = 64) : SkillsInfo.DefaultSkillInfo(skill, active, color, onlyTeam, disableOnFreezeTime, needsTeammates, requiredPermission, hudDuration, descriptionHudDuration, maxPerServer, rarity)

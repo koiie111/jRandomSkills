@@ -1,7 +1,6 @@
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
-using System.Collections.Concurrent;
 using src.utils;
 
 namespace src.player.skills
@@ -19,23 +18,6 @@ namespace src.player.skills
         {
             foreach (var player in PlayerManager.GetTickPlayers())
                 SkillUtils.CloseMenu(player);
-        }
-
-        public static void OnTick()
-        {
-            if (Server.TickCount % 32 != 0) return;
-            foreach (var player in PlayerManager.GetTickPlayers())
-            {
-                var playerInfo = PlayerManager.GetPlayer(player);
-
-                if (playerInfo == null || playerInfo.Skill != skillName) continue;
-                if (!SkillUtils.HasMenu(player)) continue;
-
-                var enemies = SkillUtils.GetSelectableEnemies(player, true);
-
-                ConcurrentBag<(string, string)> menuItems = [.. enemies.Select(e => ($"\u202A{e.PlayerName}\u202C : {(e.InGameMoneyServices == null ? 0 : e.InGameMoneyServices.Account + e.InGameMoneyServices.CashSpentThisRound)}$", e.Key().ToString()))];
-                SkillUtils.UpdateMenu(player, menuItems);
-            }
         }
 
         public static void TypeSkill(CCSPlayerController player, string[] commands)
@@ -80,20 +62,20 @@ namespace src.player.skills
                 enemyEvent.Notify($" {ChatColors.Red}" + enemyEvent.GetTranslation("moneyswap_enemy_info"));
         }
 
+        private static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
+        {
+            var enemies = SkillUtils.GetSelectableEnemies(player, true);
+
+            return enemies.Select(e => ($"\u202A{e.PlayerName}\u202C : {(e.InGameMoneyServices == null ? 0 : e.InGameMoneyServices.Account + e.InGameMoneyServices.CashSpentThisRound)}$", e.Key().ToString()));
+        }
+
         public static void EnableSkill(CCSPlayerController player)
         {
             var playerInfo = PlayerManager.GetPlayer(player);
             if (playerInfo == null) return;
             playerInfo.SkillUsed = false;
 
-            var enemies = SkillUtils.GetSelectableEnemies(player, true);
-            if (enemies.Length > 0)
-            {
-                ConcurrentBag<(string, string)> menuItems = [.. enemies.Select(e => ($"\u202A{e.PlayerName}\u202C : {(e.InGameMoneyServices == null ? 0 : e.InGameMoneyServices.Account + e.InGameMoneyServices.CashSpentThisRound)}$", e.Key().ToString()))];
-                SkillUtils.CreateMenu(player, menuItems);
-            }
-            else
-                player.Notify($" {ChatColors.Red}{player.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+            SkillUtils.CreateTargetMenu(player, GetTargets);
         }
 
         private static void SwapMoney(CCSPlayerController player, CCSPlayerController enemy)

@@ -97,6 +97,7 @@ namespace src.player
 
         private static HookResult RoundStart(EventRoundStart @event, GameEventInfo info)
         {
+            Hud.ClearTargetPickers();
             lock (setLock)
             {
                 bool isWarmup = IsWarmupPeriod();
@@ -270,6 +271,7 @@ namespace src.player
 
         private static HookResult RoundEnd(EventRoundEnd @event, GameEventInfo info)
         {
+            Hud.ClearTargetPickers();
             if (summaryRoundStarted && Config.LoadedConfig.SummaryAfterTheRound)
                 Hud.RecordRoundSummary();
             summaryRoundStarted = false;

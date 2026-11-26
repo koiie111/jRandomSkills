@@ -2,7 +2,6 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
 using src.utils;
-using System.Collections.Concurrent;
 
 namespace src.player.skills
 {
@@ -24,29 +23,11 @@ namespace src.player.skills
             }
         }
 
-        public static void OnTick()
+        private static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
         {
-            if (Server.TickCount % 32 != 0) return;
-
-            foreach (var player in PlayerManager.GetTickPlayers())
-            {
-                if (player == null || !player.IsValid) continue;
-
-                var playerInfo = PlayerManager.GetPlayer(player);
-                if (playerInfo == null || playerInfo.Skill != skillName) continue;
-                if (!SkillUtils.HasMenu(player)) continue;
-
-                var enemies = SkillUtils.GetSelectableEnemies(player, true);
-                ConcurrentBag<(string, string)> menuItems = [];
-
-                foreach (var e in enemies)
-                {
-                    int money = e.InGameMoneyServices?.Account ?? 0;
-                    menuItems.Add(($"\u202A{e.PlayerName}\u202C : {money}$", e.Key().ToString()));
-                }
-
-                SkillUtils.UpdateMenu(player, menuItems);
-            }
+            var enemies = SkillUtils.GetSelectableEnemies(player, true);
+            return enemies.Select(enemy =>
+                ($"‪{enemy.PlayerName}‬ : {enemy.InGameMoneyServices?.Account ?? 0}$", enemy.Key().ToString()));
         }
 
         public static void EnableSkill(CCSPlayerController player)
@@ -58,16 +39,7 @@ namespace src.player.skills
 
             playerInfo.SkillUsed = false;
 
-            var enemies = PlayerManager.GetTickPlayers().Where(p => p.IsValid && p.PlayerPawn?.Value?.Health > 0 && p.Team != player.Team && !p.IsHLTV && p.Team != CsTeam.Spectator && p.Team != CsTeam.None).ToArray();
-            if (enemies.Length > 0)
-            {
-                ConcurrentBag<(string, string)> menuItems = [.. enemies.Select(e => ($"\u202A{e.PlayerName}\u202C : {(e.InGameMoneyServices?.Account ?? 0)}$", e.Key().ToString()))];
-                SkillUtils.CreateMenu(player, menuItems);
-            }
-            else
-            {
-                player.Notify($" {ChatColors.Red}{player.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
-            }
+            SkillUtils.CreateTargetMenu(player, GetTargets);
         }
 
         public static void TypeSkill(CCSPlayerController player, string[] commands)

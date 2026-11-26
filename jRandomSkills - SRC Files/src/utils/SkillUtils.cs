@@ -1169,10 +1169,11 @@ namespace src.utils
 
         public static void CloseMenu(CCSPlayerController? player) => Hud.ClosePicker(player);
 
-        public static bool HasMenu(CCSPlayerController? player) => Hud.HasPicker(player);
+        public static IEnumerable<(string, string)> GetEnemyMenuTargets(CCSPlayerController player) =>
+            GetSelectableEnemies(player, true).Select(target => (target.PlayerName, target.Key().ToString()));
 
-        public static void UpdateMenu(CCSPlayerController? player, ConcurrentBag<(string, string)> items)
-            => Hud.UpdatePicker(player, items);
+        public static void CreateTargetMenu(CCSPlayerController player,
+            Func<CCSPlayerController, IEnumerable<(string, string)>> getTargets) => Hud.CreateTargetPicker(player, getTargets);
 
         public static void CreateMenu(CCSPlayerController? player, ConcurrentBag<(string, string)> items,
             (string, string, bool)? lastElement = null) => Hud.CreatePicker(player, items, lastElement);

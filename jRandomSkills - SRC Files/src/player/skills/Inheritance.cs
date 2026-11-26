@@ -34,7 +34,8 @@ namespace src.player.skills
             if (player == null || !player.IsValid) return;
 
             holders[player.Key()] = 0;
-            RefreshMenu(player);
+            if (PlayerManager.GetPlayer(player) is { } playerInfo) playerInfo.SkillUsed = false;
+            SkillUtils.CreateTargetMenu(player, GetTargets);
         }
 
         public static void DisableSkill(CCSPlayerController player)
@@ -75,7 +76,7 @@ namespace src.player.skills
                 var holder = PlayerManager.GetController(holderIndex);
                 if (holder == null || !holder.IsValid || holder.Team != victim.Team) continue;
 
-                RefreshMenu(holder);
+                if (holder.IsBot) SkillUtils.CreateTargetMenu(holder, GetTargets);
             }
         }
 
@@ -148,11 +149,8 @@ namespace src.player.skills
             playerEvent.Notify($" {ChatColors.Green}" + playerEvent.GetTranslation("inheritance_player_info", fallenInfo.PlayerName));
         }
 
-        private static void RefreshMenu(CCSPlayerController player)
+        private static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
         {
-            if (player == null || !player.IsValid || player.LifeState != (byte)LifeState_t.LIFE_ALIVE) return;
-            if (PlayerManager.GetPlayer(player)?.Skill != skillName) return;
-
             ConcurrentBag<(string, string)> menuItems = [];
             foreach (var (fallenIndex, fallenInfo) in fallen)
             {
@@ -162,12 +160,7 @@ namespace src.player.skills
                 menuItems.Add(($"\u202A{fallenInfo.PlayerName}\u202C : {player.GetSkillName(fallenInfo.Skill)}", fallenIndex.ToString()));
             }
 
-            if (menuItems.IsEmpty) return;
-
-            if (SkillUtils.HasMenu(player))
-                SkillUtils.UpdateMenu(player, menuItems);
-            else
-                SkillUtils.CreateMenu(player, menuItems);
+            return menuItems;
         }
 
         private static bool CanInherit(CCSPlayerController player, FallenInfo fallenInfo)

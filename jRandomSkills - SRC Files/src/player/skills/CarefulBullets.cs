@@ -43,23 +43,6 @@ namespace src.player.skills
             }
         }
 
-        public static void OnTick()
-        {
-            if (Server.TickCount % 32 != 0) return;
-            foreach (var player in PlayerManager.GetTickPlayers())
-            {
-                var playerInfo = PlayerManager.GetPlayer(player);
-
-                if (playerInfo == null || playerInfo.Skill != skillName) continue;
-                if (!SkillUtils.HasMenu(player)) continue;
-
-                var enemies = SkillUtils.GetSelectableEnemies(player, true);
-
-                ConcurrentBag<(string, string)> menuItems = [.. enemies.Select(e => (e.PlayerName, e.Key().ToString()))];
-                SkillUtils.UpdateMenu(player, menuItems);
-            }
-        }
-
         public static void TypeSkill(CCSPlayerController player, string[] commands)
         {
             if (player == null || !player.IsValid || player.LifeState != (byte)LifeState_t.LIFE_ALIVE) return;
@@ -113,14 +96,7 @@ namespace src.player.skills
             var playerEvent = PlayerManager.GetPlayerFromEvent(player);
             if (playerEvent == null || !playerEvent.IsValid) return;
 
-            var enemies = SkillUtils.GetSelectableEnemies(player, true);
-            if (enemies.Length > 0)
-            {
-                ConcurrentBag<(string, string)> menuItems = [.. enemies.Select(e => (e.PlayerName, e.Key().ToString()))];
-                SkillUtils.CreateMenu(player, menuItems);
-            }
-            else
-                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+            SkillUtils.CreateTargetMenu(player, SkillUtils.GetEnemyMenuTargets);
         }
 
         public static void BulletImpact(EventBulletImpact @event)

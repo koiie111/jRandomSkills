@@ -22,33 +22,6 @@ namespace src.player.skills
                 SkillUtils.CloseMenu(player);
         }
 
-        public static void OnTick()
-        {
-            if (Server.TickCount % 32 != 0) return;
-            foreach (var player in PlayerManager.GetTickPlayers())
-            {
-                var playerInfo = PlayerManager.GetPlayer(player);
-
-                if (playerInfo == null || playerInfo.Skill != skillName) continue;
-                if (!SkillUtils.HasMenu(player)) continue;
-
-                var enemies = PlayerManager.GetTickPlayers().Where(p => p != null && p.IsValid).Select(p => PlayerManager.GetPlayerEvent(p)).Where(p => p != null && p.IsValid && p.Key() != player.Key() && p.PlayerPawn?.Value != null && p.PlayerPawn.Value.IsValid && p.PlayerPawn.Value.Health > 0 && !p.IsHLTV && p.Team != CsTeam.Spectator && p.Team != CsTeam.None).ToArray();
-
-                ConcurrentBag<(string, string)> menuItems = [];
-                foreach (var enemy in enemies)
-                {
-                    var enemyInfo = PlayerManager.GetPlayer(enemy);
-                    if (enemyInfo == null) continue;
-
-                    var skillData = SkillData.Skills.FirstOrDefault(s => s.Skill == enemyInfo.Skill);
-                    if (skillData == null) continue;
-
-                    menuItems.Add(($"\u202A{enemy!.PlayerName}\u202C : {player.GetSkillName(skillData.Skill)}", enemy.Key().ToString()));
-                }
-                SkillUtils.UpdateMenu(player, menuItems);
-            }
-        }
-
         public static void TypeSkill(CCSPlayerController player, string[] commands)
         {
             if (player == null) return;
@@ -75,43 +48,43 @@ namespace src.player.skills
             DuplicateSkill(player, enemy);
         }
 
+        private static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
+        {
+            var enemies = PlayerManager.GetTickPlayers().Where(p => p != null && p.IsValid).Select(p => PlayerManager.GetPlayerEvent(p)).Where(p => p != null && p.IsValid && p.Key() != player.Key() && p.PlayerPawn?.Value != null && p.PlayerPawn.Value.IsValid && p.PlayerPawn.Value.Health > 0 && !p.IsHLTV && p.Team != CsTeam.Spectator && p.Team != CsTeam.None).ToArray();
+
+            ConcurrentBag<(string, string)> menuItems = [];
+            foreach (var enemy in enemies)
+            {
+                var enemyInfo = PlayerManager.GetPlayer(enemy);
+                if (enemyInfo == null) continue;
+
+                var skillData = SkillData.Skills.FirstOrDefault(s => s.Skill == enemyInfo.Skill);
+                if (skillData == null) continue;
+
+                menuItems.Add(($"\u202A{enemy!.PlayerName}\u202C : {player.GetSkillName(skillData.Skill)}", enemy.Key().ToString()));
+            }
+            return menuItems;
+        }
+
         public static void EnableSkill(CCSPlayerController player)
         {
             var playerEvent = PlayerManager.GetPlayerFromEvent(player);
             if (playerEvent == null || !playerEvent.IsValid) return;
 
-            var enemies = PlayerManager.GetTickPlayers().Where(p => p != null && p.IsValid && p != player && p.PlayerPawn?.Value?.Health > 0 && !p.IsHLTV && p.Team != CsTeam.Spectator && p.Team != CsTeam.None).ToArray();
-            if (enemies.Length > 0)
+            var targets = GetTargets(player).ToArray();
+            if (targets.Length > 0 && targets.All(target =>
+                uint.TryParse(target.Item2, out var key) && PlayerManager.GetPlayerByKey(key) is { } info
+                && (player.Team == CsTeam.Terrorist ? Event.counterterroristSkills : Event.terroristSkills)
+                    .Any(skill => skill.Name == info.Skill.ToString())))
             {
-                ConcurrentBag<string> skills = [];
-                ConcurrentBag<(string, string)> menuItems = [];
-                foreach (var enemy in enemies)
-                {
-                    var enemyInfo = PlayerManager.GetPlayer(enemy);
-                    if (enemyInfo == null) continue;
-
-                    var skillData = SkillData.Skills.FirstOrDefault(s => s.Skill == enemyInfo.Skill);
-                    if (skillData == null) continue;
-
-                    skills.Add(skillData.Skill.ToString());
-                    menuItems.Add(($"\u202A{enemy.PlayerName}\u202C : {playerEvent.GetSkillName(skillData.Skill)}", enemy.Key().ToString()));
-                }
-
-                int ctSkills = Event.counterterroristSkills.Count(s => skills.Contains(s.Name));
-                int ttSkills = Event.terroristSkills.Count(s => skills.Contains(s.Name));
-
-                if ((player.Team == CsTeam.Terrorist && ctSkills == skills.Count) || (player.Team == CsTeam.CounterTerrorist && ttSkills == skills.Count))
-                {
-                    Event.SetRandomSkill(player);
-                    return;
-                }
-
-                SkillUtils.CreateMenu(player, menuItems);
-                SkillUtils.PrintToChat(player, $"{ChatColors.DarkRed}{playerEvent.GetSkillName(skillName)}{ChatColors.Lime}: {playerEvent.GetSkillDescription(skillName)}",
-                    border: !PlayerManager.GetTickPlayers().Any(p => p.Team == player.Team && p != player) ? "tb" : "t");
+                Event.SetRandomSkill(player);
+                return;
             }
-            else
-                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+
+            if (PlayerManager.GetPlayer(player) is { } playerInfo) playerInfo.SkillUsed = false;
+            SkillUtils.CreateTargetMenu(player, GetTargets);
+            SkillUtils.PrintToChat(player, $"{ChatColors.DarkRed}{playerEvent.GetSkillName(skillName)}{ChatColors.Lime}: {playerEvent.GetSkillDescription(skillName)}",
+                border: !PlayerManager.GetTickPlayers().Any(p => p.Team == player.Team && p != player) ? "tb" : "t");
         }
 
         public static void DisableSkill(CCSPlayerController player)

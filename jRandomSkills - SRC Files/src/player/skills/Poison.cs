@@ -15,7 +15,6 @@ namespace src.player.skills
         private static readonly ConcurrentDictionary<uint, uint> playersToTarget = [];
         private static readonly ConcurrentDictionary<uint, uint> targetToPlayer = [];
         private static readonly object setLock = new();
-        private static readonly List<CCSPlayerController> holderBuffer = [];
 
         public static void LoadSkill()
         {
@@ -74,21 +73,6 @@ namespace src.player.skills
                         SkillUtils.EmitSoundToPlayer(player, poisonSound, SkillsInfo.GetValue<float>(skillName, "soundVolume"));
                 }
             }
-
-            if (Server.TickCount % 32 != 0) return;
-
-            PlayerManager.FillSkillHolders(skillName, holderBuffer);
-            if (holderBuffer.Count == 0) return;
-
-            foreach (var player in holderBuffer)
-            {
-                if (!SkillUtils.HasMenu(player)) continue;
-
-                var enemies = SkillUtils.GetSelectableEnemies(player, true);
-
-                ConcurrentBag<(string, string)> menuItems = new(enemies.Select(e => (e.PlayerName, e.Key().ToString())));
-                SkillUtils.UpdateMenu(player, menuItems);
-            }
         }
 
         public static void TypeSkill(CCSPlayerController player, string[] commands)
@@ -144,14 +128,7 @@ namespace src.player.skills
             var playerEvent = PlayerManager.GetPlayerFromEvent(player);
             if (playerEvent == null || !playerEvent.IsValid) return;
 
-            var enemies = SkillUtils.GetSelectableEnemies(player, true);
-            if (enemies.Length > 0)
-            {
-                ConcurrentBag<(string, string)> menuItems = new(enemies.Select(e => (e.PlayerName, e.Key().ToString())));
-                SkillUtils.CreateMenu(player, menuItems);
-            }
-            else
-                playerEvent.Notify($" {ChatColors.Red}{player.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+            SkillUtils.CreateTargetMenu(player, SkillUtils.GetEnemyMenuTargets);
         }
 
         private static CCSPlayerController? GetSkillOwner(uint targetIndex)

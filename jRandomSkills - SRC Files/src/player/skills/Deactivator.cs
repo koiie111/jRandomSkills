@@ -22,31 +22,6 @@ namespace src.player.skills
                 SkillUtils.CloseMenu(player);
         }
 
-        public static void OnTick()
-        {
-            if (Server.TickCount % 32 != 0) return;
-            foreach (var player in PlayerManager.GetTickPlayers())
-            {
-                var playerInfo = PlayerManager.GetPlayer(player);
-
-                if (playerInfo == null || playerInfo.Skill != skillName) continue;
-                if (!SkillUtils.HasMenu(player)) continue;
-
-                var enemies = SkillUtils.GetSelectableEnemies(player, true);
-
-                ConcurrentBag<(string, string)> menuItems = [];
-                foreach (var enemy in enemies)
-                {
-                    var enemyInfo = PlayerManager.GetPlayer(enemy);
-                    if (enemyInfo == null) continue;
-                    var skillData = SkillData.Skills.FirstOrDefault(s => s.Skill == enemyInfo.Skill);
-                    if (skillData == null) continue;
-                    menuItems.Add(($"\u202A{enemy.PlayerName}\u202C : {player.GetSkillName(skillData.Skill)}", enemy.Key().ToString()));
-                }
-                SkillUtils.UpdateMenu(player, menuItems);
-            }
-        }
-
         public static void TypeSkill(CCSPlayerController player, string[] commands)
         {
             if (player == null) return;
@@ -80,29 +55,29 @@ namespace src.player.skills
             DeacitvateSkill(player, enemy);
         }
 
+        private static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
+        {
+            var enemies = SkillUtils.GetSelectableEnemies(player, true);
+
+            ConcurrentBag<(string, string)> menuItems = [];
+            foreach (var enemy in enemies)
+            {
+                var enemyInfo = PlayerManager.GetPlayer(enemy);
+                if (enemyInfo == null) continue;
+                var skillData = SkillData.Skills.FirstOrDefault(s => s.Skill == enemyInfo.Skill);
+                if (skillData == null) continue;
+                menuItems.Add(($"\u202A{enemy.PlayerName}\u202C : {player.GetSkillName(skillData.Skill)}", enemy.Key().ToString()));
+            }
+            return menuItems;
+        }
+
         public static void EnableSkill(CCSPlayerController player)
         {
             var playerEvent = PlayerManager.GetPlayerFromEvent(player);
             if (playerEvent == null || !playerEvent.IsValid) return;
 
-            var enemies = SkillUtils.GetSelectableEnemies(player, true);
-            if (enemies.Length > 0)
-            {
-                ConcurrentBag<(string, string)> menuItems = [];
-                foreach (var enemy in enemies)
-                {
-                    var enemyInfo = PlayerManager.GetPlayer(enemy);
-                    if (enemyInfo == null) continue;
-
-                    var skillData = SkillData.Skills.FirstOrDefault(s => s.Skill == enemyInfo.Skill);
-                    if (skillData == null) continue;
-
-                    menuItems.Add(($"\u202A{enemy!.PlayerName}\u202C : {playerEvent.GetSkillName(skillData.Skill)}", enemy.Key().ToString()));
-                }
-                SkillUtils.CreateMenu(player, menuItems);
-            }
-            else
-                playerEvent.Notify($" {ChatColors.Red}{player.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
+            if (PlayerManager.GetPlayer(player) is { } playerInfo) playerInfo.SkillUsed = false;
+            SkillUtils.CreateTargetMenu(player, GetTargets);
         }
 
         public static void DisableSkill(CCSPlayerController player)
