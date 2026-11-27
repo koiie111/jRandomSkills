@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Net;
 using System.Reflection;
 using System.Text.RegularExpressions;
@@ -27,6 +26,16 @@ internal static partial class Hud
         public bool Obscured { get; init; }
     }
 
+    internal sealed class TargetPicker(Skills skill, Func<CCSPlayerController, IEnumerable<(string, string)>> getTargets)
+    {
+        public Skills Skill { get; } = skill;
+        public Func<CCSPlayerController, IEnumerable<(string, string)>> GetTargets { get; } = getTargets;
+        public long NextRefresh { get; set; }
+        public bool Dismissed { get; set; }
+        public bool Explicit { get; set; }
+        public string? Status { get; set; }
+    }
+
     private sealed class Viewer(uint key)
     {
         public uint Key { get; } = key;
@@ -34,6 +43,7 @@ internal static partial class Hud
         public MenuView? Menu { get; set; }
         public MenuView? Pending { get; set; }
         public MenuView? Picker { get; set; }
+        public TargetPicker? Target { get; set; }
         public long NextMenuAttempt { get; set; }
         public bool WelcomeRead { get; set; }
         public bool WelcomeConfirmed { get; set; }
@@ -67,7 +77,8 @@ internal static partial class Hud
         foreach (var type in typeof(ISkill).Assembly.GetTypes())
         {
             if (typeof(ISkill).IsAssignableFrom(type) && Enum.TryParse<Skills>(type.Name, out var skill)
-                && type.GetMethod("UseSkill", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly) != null)
+                && (type.GetMethod("UseSkill", BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly) != null
+                    || SkillUtils.TargetProvider(skill) != null))
                 BoundSkills.Add(skill);
         }
 
@@ -87,6 +98,7 @@ internal static partial class Hud
                 CloseModal(player);
                 passive?.Close(player);
             }
+            ClearTargetPickers();
             Viewers.Clear();
             previousRound = [];
         });
@@ -175,6 +187,7 @@ internal static partial class Hud
         if (!viewer.WelcomeRead && player.SteamID != 0) ReadWelcome(player);
         if (!safe && viewer.Menu != null && viewer.Menu == viewer.AutomaticWelcome)
             CloseModal(player, preservePicker: true);
+        RefreshTargetPicker(player, viewer);
         if (safe && viewer.WelcomePending && !viewer.WelcomeConfirmed && viewer.Menu == null && viewer.Pending == null && viewer.Picker == null)
             viewer.Pending = viewer.AutomaticWelcome = Welcome(player);
         if ((viewer.Pending != null || (viewer.Menu == null && viewer.Picker != null)) && Environment.TickCount64 >= viewer.NextMenuAttempt)
@@ -316,27 +329,42 @@ internal static partial class Hud
     private static void TryOpen(CCSPlayerController player, Viewer viewer)
     {
         var next = viewer.Pending ?? viewer.Picker;
-        if (next == null || (next.Picker != null && viewer.Menu is { Picker: null })) return;
+        if (next == null) return;
         viewer.NextMenuAttempt = Environment.TickCount64 + 500;
+        var target = next.Picker != null ? viewer.Target : null;
+        if (next.Picker != null && viewer.Menu is { Picker: null })
+        {
+            TargetStatus(player, target, "waiting for jRandomSkills menu");
+            return;
+        }
         EnsurePanels();
         if (modal!.IsOpenFor(player))
         {
             viewer.Menu = next;
             viewer.Pending = null;
             DrawMenu(player, viewer.Menu);
+            TargetStatus(player, target, "opened");
             return;
         }
         if (MenuManager.GetActiveMenu(player) != null ||
             Utilities.FindAllEntitiesByDesignerName<CCSCustomHudLayout>("custom_hud_layout")
                 .Any(layout => layout.IsValid && player.Slot < layout.PlayerLayoutStates.Count
                     && layout.IsInputCaptureEnabled(player)))
+        {
+            TargetStatus(player, target, "waiting for other menu");
             return;
+        }
 
         modal.Open(player);
-        if (!modal.IsOpenFor(player)) return;
+        if (!modal.IsOpenFor(player))
+        {
+            TargetStatus(player, target, "Panorama open failed");
+            return;
+        }
         viewer.Menu = next;
         viewer.Pending = null;
         DrawMenu(player, viewer.Menu);
+        TargetStatus(player, target, "opened");
     }
 
     private static void DrawMenu(CCSPlayerController player, MenuView view)
@@ -373,6 +401,7 @@ internal static partial class Hud
         if (ev.Action == PanelAction.Close)
         {
             if (ReferenceEquals(viewer.Picker, view)) viewer.Picker = null;
+            if (view.Picker != null) TargetStatus(ev.Player, viewer.Target, "Panorama closed");
             viewer.Menu = null;
             return;
         }
@@ -392,6 +421,14 @@ internal static partial class Hud
                     viewer.WelcomePending = false;
                     viewer.AutomaticWelcome = null;
                 }
+                if (view.Picker != null && viewer.Target is { } target)
+                {
+                    target.Dismissed = true;
+                    target.Explicit = false;
+                    TargetStatus(ev.Player, target, "dismissed");
+                    HidePicker(ev.Player, viewer);
+                    return;
+                }
                 CloseModal(ev.Player, preservePicker: view.Picker == null);
                 return;
         }
@@ -405,34 +442,167 @@ internal static partial class Hud
 
     internal static void DismissMenu(CCSPlayerController player, bool preservePicker = false) => CloseModal(player, preservePicker);
 
+    internal static void HideHud(CCSPlayerController player)
+    {
+        var viewer = For(player);
+        var target = PlayerManager.GetPlayer(PlayerManager.GetPlayerEvent(player))?.TargetPicker;
+        if (target != null)
+        {
+            target.Explicit = false;
+            HidePicker(player, viewer);
+        }
+
+        CloseModal(player, preservePicker: target != null);
+    }
+
     private static void CloseModal(CCSPlayerController player, bool preservePicker = false)
     {
+        if (!preservePicker && PlayerManager.GetPlayer(PlayerManager.GetPlayerEvent(player)) is { } info)
+            info.TargetPicker = null;
         if (!Viewers.TryGetValue(player.Slot, out var viewer) || viewer.Key != player.Key()) return;
         viewer.Pending = null;
-        if (!preservePicker) viewer.Picker = null;
+        if (!preservePicker)
+        {
+            viewer.Picker = null;
+            viewer.Target = null;
+        }
         viewer.Menu = null;
         modal?.Close(player);
     }
 
-    public static bool HasPicker(CCSPlayerController? player)
-        => player is { IsValid: true } && Viewers.TryGetValue(player.Slot, out var viewer)
-            && viewer.Picker != null && viewer.Key == player.Key();
+    internal static void ClearTargetPickers()
+    {
+        foreach (var info in PlayerManager.GetAllPlayers()) info.TargetPicker = null;
+        foreach (var player in PlayerManager.GetTickPlayers())
+        {
+            if (!player.IsValid || !Viewers.TryGetValue(player.Slot, out var viewer) || viewer.Target == null) continue;
+            viewer.Target = null;
+            HidePicker(player, viewer);
+        }
+    }
 
     public static void ClosePicker(CCSPlayerController? player)
     {
-        if (player is not { IsValid: true } || !Viewers.TryGetValue(player.Slot, out var viewer)
-            || viewer.Key != player.Key()) return;
+        if (player is not { IsValid: true }) return;
+        if (PlayerManager.GetPlayer(player) is { } info) info.TargetPicker = null;
+        var recipient = PlayerManager.GetPlayerFromEvent(player);
+        if (recipient == null || !Viewers.TryGetValue(recipient.Slot, out var viewer) || viewer.Key != recipient.Key()) return;
+        viewer.Target = null;
+        HidePicker(recipient, viewer);
+    }
+
+    private static void HidePicker(CCSPlayerController player, Viewer viewer)
+    {
         viewer.Picker = null;
         if (viewer.Menu?.Picker == null) return;
         viewer.Menu = null;
         modal?.Close(player);
     }
 
-    public static void CreatePicker(CCSPlayerController? player, IEnumerable<(string, string)> items,
-        (string Text, string Value, bool Close)? extra)
+    internal static void CreateTargetPicker(CCSPlayerController player,
+        Func<CCSPlayerController, IEnumerable<(string, string)>> getTargets)
     {
-        if (player is not { IsValid: true } || PlayerManager.GetPlayer(player) is not { } info
-            || info.HideHUD >= Server.TickCount) return;
+        if (player is not { IsValid: true } || PlayerManager.GetPlayer(player) is not { } info) return;
+        info.TargetPicker = new TargetPicker(info.Skill, getTargets);
+        var recipient = PlayerManager.GetPlayerFromEvent(player);
+        if (recipient != null && Valid(recipient)) RefreshTargetPicker(recipient, For(recipient));
+    }
+
+    internal static void RefreshBotTargetPicker(CCSPlayerController bot)
+    {
+        if (PlayerManager.GetPlayer(bot) is not { TargetPicker: { } target } info) return;
+        long now = Environment.TickCount64;
+        if (now < target.NextRefresh || PlayerManager.GetPlayerFromEvent(bot) is not { IsBot: true }) return;
+        target.NextRefresh = now + 500;
+        if (info.SkillUsed)
+        {
+            info.TargetPicker = null;
+            return;
+        }
+        if (!bot.PawnIsAlive || info.IsDrawing
+            || (SkillsInfo.GetValue<bool>(target.Skill, "disableOnFreezeTime") && SkillUtils.IsFreezeTime())) return;
+        var choices = target.GetTargets(bot).ToArray();
+        if (choices.Length > 0)
+            jRandomSkills.Instance.SkillAction(target.Skill.ToString(), "TypeSkill",
+                [bot, new[] { choices[Random.Shared.Next(choices.Length)].Item2 }]);
+    }
+
+    internal static bool ReopenTargetPicker(CCSPlayerController actor)
+    {
+        var player = PlayerManager.GetPlayerFromEvent(actor);
+        if (player is not { IsValid: true, IsBot: false } || PlayerManager.GetPlayer(actor)?.TargetPicker is not { } target) return false;
+        var viewer = For(player);
+        target.Dismissed = false;
+        target.Explicit = true;
+        target.NextRefresh = 0;
+        viewer.NextMenuAttempt = 0;
+        RefreshTargetPicker(player, viewer);
+        if (viewer.Picker != null && viewer.Pending == null && viewer.Menu == null
+            && Environment.TickCount64 >= viewer.NextMenuAttempt) TryOpen(player, viewer);
+        return true;
+    }
+
+    private static void RefreshTargetPicker(CCSPlayerController player, Viewer viewer)
+    {
+        var actor = PlayerManager.GetPlayerEvent(player);
+        var info = PlayerManager.GetPlayer(actor);
+        var target = info?.TargetPicker;
+        if (!ReferenceEquals(viewer.Target, target))
+        {
+            if (viewer.Target != null) HidePicker(player, viewer);
+            viewer.Target = target;
+        }
+        if (target == null || actor == null || info == null) return;
+        if (info.SkillUsed)
+        {
+            ClosePicker(actor);
+            return;
+        }
+
+        if (target.Dismissed) return;
+        string? waiting = !player.PawnIsAlive || info.IsDrawing ? "waiting for active player"
+            : info.HideHUD >= Server.TickCount && !target.Explicit ? "HUD hidden"
+            : SkillsInfo.GetValue<bool>(target.Skill, "disableOnFreezeTime") && SkillUtils.IsFreezeTime()
+                ? "waiting for freeze time to end" : null;
+        if (waiting != null)
+        {
+            HidePicker(player, viewer);
+            TargetStatus(player, target, waiting);
+            return;
+        }
+
+        long now = Environment.TickCount64;
+        if (now < target.NextRefresh) return;
+        target.NextRefresh = now + 500;
+        var items = target.GetTargets(actor).OrderBy(item => item.Item2, StringComparer.Ordinal).ToArray();
+        if (items.Length == 0)
+        {
+            HidePicker(player, viewer);
+            TargetStatus(player, target, "waiting for targets");
+            return;
+        }
+
+        if (viewer.Picker is { } current && items.SequenceEqual(current.Targets)
+            && current.Language == Localization.GetLangCode(player)
+            && current.Obscured == Illiterate.CheckIlliterateSkill(player)) return;
+        CreatePicker(player, items, null, target);
+    }
+
+    private static void TargetStatus(CCSPlayerController player, TargetPicker? target, string status)
+    {
+        if (target == null || target.Status == status) return;
+        target.Status = status;
+        Debug.WriteToDebug($"Target picker {target.Skill} slot={player.Slot}: {status}", DebugCategory.Skill);
+    }
+
+    internal static void CreatePicker(CCSPlayerController? player, IEnumerable<(string, string)> items,
+        (string Text, string Value, bool Close)? extra) => CreatePicker(player, items, extra, null);
+
+    private static void CreatePicker(CCSPlayerController? player, IEnumerable<(string, string)> items,
+        (string Text, string Value, bool Close)? extra, TargetPicker? target)
+    {
+        if (player is not { IsValid: true } || PlayerManager.GetPlayer(PlayerManager.GetPlayerEvent(player)) is not { } info
+            || (info.HideHUD >= Server.TickCount && target?.Explicit != true && !player.IsBot)) return;
 
         var targets = items.ToArray();
         var choices = targets.Select(item => (Text: item.Item1, Value: item.Item2, Close: true)).ToList();
@@ -447,21 +617,31 @@ internal static partial class Hud
         }
         var skill = info.Skill;
         var viewer = For(player);
+        if (target == null) viewer.Target = null;
         var language = Localization.GetLangCode(player);
         bool obscured = Illiterate.CheckIlliterateSkill(player);
         var options = choices.DistinctBy(item => item.Value).Select(item => new Option(
             obscured ? Illiterate.GetRandomText(item.Text) ?? "" : item.Text,
             selected =>
             {
-                var current = PlayerManager.GetPlayer(PlayerManager.GetPlayerEvent(selected) ?? selected);
-                if (!selected.PawnIsAlive || current == null || current.Skill != skill || current.IsDrawing
+                var actor = PlayerManager.GetPlayerEvent(selected);
+                var current = PlayerManager.GetPlayer(actor);
+                if (actor == null || current == null || current.Skill != skill
+                    || (target != null && !ReferenceEquals(current.TargetPicker, target))) return;
+                if (!selected.PawnIsAlive || current.IsDrawing
                     || (SkillsInfo.GetValue<bool>(skill, "disableOnFreezeTime") && SkillUtils.IsFreezeTime()))
                 {
-                    ClosePicker(selected);
+                    if (target != null) RefreshTargetPicker(selected, viewer);
+                    else ClosePicker(actor);
                     return;
                 }
-                if (item.Close) ClosePicker(selected);
-                jRandomSkills.Instance.SkillAction(skill.ToString(), "TypeSkill", [selected, new[] { item.Value }]);
+                if (target == null && item.Close) ClosePicker(actor);
+                jRandomSkills.Instance.SkillAction(skill.ToString(), "TypeSkill", [actor, new[] { item.Value }]);
+                if (target != null)
+                {
+                    target.NextRefresh = 0;
+                    RefreshTargetPicker(selected, viewer);
+                }
             })).ToArray();
         var body = player.GetTranslation($"{skill.ToString().ToLowerInvariant()}_select_info");
         viewer.Picker = new MenuView(player.GetSkillName(skill), body, options, skill)
@@ -471,21 +651,8 @@ internal static partial class Hud
             Language = language,
             Obscured = obscured
         };
-        if (viewer.Pending == null) TryOpen(player, viewer);
-    }
-
-    public static void UpdatePicker(CCSPlayerController? player, ConcurrentBag<(string, string)> items)
-    {
-        if (player is not { IsValid: true } || !HasPicker(player)) return;
-        var picker = For(player).Picker!;
-        if (picker.Picker != PlayerManager.GetPlayer(player)?.Skill)
-        {
-            ClosePicker(player);
-            return;
-        }
-        if (picker.Language == Localization.GetLangCode(player) && picker.Obscured == Illiterate.CheckIlliterateSkill(player)
-            && items.SequenceEqual(picker.Targets)) return;
-        CreatePicker(player, items, null);
+        if (viewer.Pending == null && (target == null || viewer.Menu?.Picker != null
+            || Environment.TickCount64 >= viewer.NextMenuAttempt)) TryOpen(player, viewer);
     }
 
     private static MenuView Welcome(CCSPlayerController player) =>

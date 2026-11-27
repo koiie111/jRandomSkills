@@ -97,6 +97,8 @@ namespace src.player
 
         private static HookResult RoundStart(EventRoundStart @event, GameEventInfo info)
         {
+            foreach (var owner in PlayerManager.GetAllPlayers()) owner.ActivateAfterFreeze = false;
+            Hud.ClearTargetPickers();
             lock (setLock)
             {
                 bool isWarmup = IsWarmupPeriod();
@@ -144,6 +146,13 @@ namespace src.player
         {
             lock (setLock)
             {
+                foreach (var owner in PlayerManager.GetAllPlayers())
+                {
+                    if (!owner.ActivateAfterFreeze) continue;
+                    owner.ActivateAfterFreeze = false;
+                    if (PlayerManager.GetController(owner.PlayerKey) is { PawnIsAlive: true } player && !owner.IsDrawing)
+                        Instance.SkillAction(owner.Skill.ToString(), "EnableSkill", [player]);
+                }
                 if (setSkillRanThisRound || IsWarmupPeriod() || setSkillDueAt == DateTime.MaxValue || DateTime.Now < setSkillDueAt.AddSeconds(.5))
                     return HookResult.Continue;
 
@@ -270,6 +279,8 @@ namespace src.player
 
         private static HookResult RoundEnd(EventRoundEnd @event, GameEventInfo info)
         {
+            foreach (var owner in PlayerManager.GetAllPlayers()) owner.ActivateAfterFreeze = false;
+            Hud.ClearTargetPickers();
             if (summaryRoundStarted && Config.LoadedConfig.SummaryAfterTheRound)
                 Hud.RecordRoundSummary();
             summaryRoundStarted = false;

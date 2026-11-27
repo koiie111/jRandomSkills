@@ -113,9 +113,8 @@ namespace src.utils
             var info = PlayerManager.GetPlayer(player);
             if (info != null) info.PrintHTML = player.GetTranslation(key, args);
         }
-        public static CCSPlayerController[] GetSelectableTeammates(CCSPlayerController player) => PlayerManager.GetTickPlayers()
-            .Where(p => p.IsValid && p.Key() != player.Key() && p.Team == player.Team
-                && p.PlayerPawn.Value is { IsValid: true, Health: > 0 } pawn && pawn.LifeState == (byte)LifeState_t.LIFE_ALIVE).ToArray();
+        public static CCSPlayerController[] GetSelectableTeammates(CCSPlayerController player) =>
+            [.. GetLivingPeers(player).Where(peer => peer.Team == player.Team)];
 
         public static void RegisterSkill(Skills skill, string color, bool display = true)
         {
@@ -732,16 +731,18 @@ namespace src.utils
             return GetAliveEnemies(player).Any(p => CanCurse(p.Key()));
         }
 
-        private static CCSPlayerController[] GetAliveEnemies(CCSPlayerController player)
-        {
-            return [.. PlayerManager.GetTickPlayers()
-                .Where(p => p != null && p.IsValid)
+        private static CCSPlayerController[] GetAliveEnemies(CCSPlayerController player) =>
+            [.. GetLivingPeers(player).Where(peer => peer.Team != player.Team)];
+
+        internal static IEnumerable<CCSPlayerController> GetLivingPeers(CCSPlayerController player) =>
+            PlayerManager.GetTickPlayers()
                 .Select(PlayerManager.GetPlayerEvent)
-                .Where(p => p != null && p.IsValid && p.Team != player.Team
-                    && p.PlayerPawn?.Value != null && p.PlayerPawn.Value.IsValid && p.PlayerPawn.Value.Health > 0
-                    && !p.IsHLTV && p.Team != CsTeam.Spectator && p.Team != CsTeam.None)
-                .Cast<CCSPlayerController>()];
-        }
+                .OfType<CCSPlayerController>()
+                .Where(peer => peer.IsValid && !peer.IsHLTV && peer.Key() != player.Key()
+                    && peer.Team is CsTeam.Terrorist or CsTeam.CounterTerrorist
+                    && peer.PlayerPawn.Value is { IsValid: true, Health: > 0 } pawn
+                    && pawn.LifeState == (byte)LifeState_t.LIFE_ALIVE)
+                .DistinctBy(peer => peer.Key());
 
         private static readonly ConcurrentDictionary<uint, int> healthBeforeHit = [];
 
@@ -1169,10 +1170,43 @@ namespace src.utils
 
         public static void CloseMenu(CCSPlayerController? player) => Hud.ClosePicker(player);
 
-        public static bool HasMenu(CCSPlayerController? player) => Hud.HasPicker(player);
+        public static IEnumerable<(string, string)> GetEnemyMenuTargets(CCSPlayerController player) =>
+            GetSelectableEnemies(player, true).Select(target => (target.PlayerName, target.Key().ToString()));
 
-        public static void UpdateMenu(CCSPlayerController? player, ConcurrentBag<(string, string)> items)
-            => Hud.UpdatePicker(player, items);
+        internal static Func<CCSPlayerController, IEnumerable<(string, string)>>? TargetProvider(Skills skill) => skill switch
+        {
+            Skills.Bankrupt => Bankrupt.GetTargets,
+            Skills.Deactivator => Deactivator.GetTargets,
+            Skills.Duplicator => Duplicator.GetTargets,
+            Skills.Giant => Giant.GetTargets,
+            Skills.Inheritance => Inheritance.GetTargets,
+            Skills.LifeSwap => LifeSwap.GetTargets,
+            Skills.MoneySwap => MoneySwap.GetTargets,
+            Skills.Partner => Partner.GetTargets,
+            Skills.Thief => Thief.GetTargets,
+            Skills.Bounty or Skills.CarefulBullets or Skills.Darkness or Skills.Deaf or Skills.ExpensiveAmmo
+                or Skills.Glitch or Skills.Jammer or Skills.JetKick or Skills.JumpBan or Skills.JumpCurse
+                or Skills.Magnifier or Skills.Nemesis or Skills.Nightmare or Skills.Poison or Skills.PrimaryBan
+                or Skills.Voodoo or Skills.WildThrow => GetEnemyMenuTargets,
+            _ => null
+        };
+
+        public static void CreateTargetMenu(CCSPlayerController player, Skills skill)
+        {
+            if (PlayerManager.GetPlayer(player)?.Skill == skill && TargetProvider(skill) is { } getTargets)
+                Hud.CreateTargetPicker(player, getTargets);
+        }
+
+        internal static bool CanUseTeamSkill(CCSPlayerController player, Skills skill) =>
+            !(player.Team == CsTeam.Terrorist && Event.counterterroristSkills.Any(s => s.Name == skill.ToString()))
+            && !(player.Team == CsTeam.CounterTerrorist && Event.terroristSkills.Any(s => s.Name == skill.ToString()));
+
+        internal static void EnableAcquiredSkill(CCSPlayerController player, jSkill_PlayerInfo info)
+        {
+            info.ActivateAfterFreeze = IsFreezeTime() && SkillsInfo.GetValue<bool>(info.Skill, "disableOnFreezeTime");
+            if (!info.ActivateAfterFreeze)
+                jRandomSkills.Instance.SkillAction(info.Skill.ToString(), "EnableSkill", [player]);
+        }
 
         public static void CreateMenu(CCSPlayerController? player, ConcurrentBag<(string, string)> items,
             (string, string, bool)? lastElement = null) => Hud.CreatePicker(player, items, lastElement);

@@ -35,7 +35,12 @@ namespace src.player
                 int tick = Server.TickCount;
                 foreach (var player in PlayerManager.GetTickPlayers())
                 {
-                    if (player == null || !player.IsValid || player.IsBot) continue;
+                    if (player == null || !player.IsValid) continue;
+                    if (player.IsBot)
+                    {
+                        Hud.RefreshBotTargetPicker(player);
+                        continue;
+                    }
 
                     UpdatePlayerHud(player, tick, now, safePeriod, hideCards);
                 }

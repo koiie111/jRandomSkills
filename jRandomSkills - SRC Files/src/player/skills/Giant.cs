@@ -45,6 +45,12 @@ namespace src.player.skills
             }
         }
 
+        internal static IEnumerable<(string, string)> GetTargets(CCSPlayerController player)
+        {
+            var enemies = GetSelectableEnemies(player);
+            return enemies.Select(e => (e.PlayerName, e.Key().ToString()));
+        }
+
         public static void EnableSkill(CCSPlayerController player)
         {
             var playerInfo = PlayerManager.GetPlayer(player);
@@ -58,33 +64,7 @@ namespace src.player.skills
             var playerEvent = PlayerManager.GetPlayerFromEvent(player);
             if (playerEvent == null || !playerEvent.IsValid) return;
 
-            var enemies = GetSelectableEnemies(player);
-            if (enemies.Length > 0)
-            {
-                ConcurrentBag<(string, string)> menuItems = [.. enemies.Select(e => (e.PlayerName, e.Key().ToString()))];
-                SkillUtils.CreateMenu(player, menuItems);
-            }
-            else
-                playerEvent.Notify($" {ChatColors.Red}{playerEvent.GetTranslation("selectplayerskill_incorrect_enemy_index")}");
-        }
-
-        public static void OnTick()
-        {
-            if (Server.TickCount % 32 != 0) return;
-
-            ReapplyScales();
-
-            foreach (var player in PlayerManager.GetTickPlayers())
-            {
-                var playerInfo = PlayerManager.GetPlayer(player);
-                if (playerInfo == null || playerInfo.Skill != skillName) continue;
-                if (!SkillUtils.HasMenu(player)) continue;
-
-
-                var enemies = GetSelectableEnemies(player);
-                ConcurrentBag<(string, string)> menuItems = [.. enemies.Select(e => (e.PlayerName, e.Key().ToString()))];
-                SkillUtils.UpdateMenu(player, menuItems);
-            }
+            SkillUtils.CreateTargetMenu(player, skillName);
         }
 
         public static void TypeSkill(CCSPlayerController player, string[] commands)

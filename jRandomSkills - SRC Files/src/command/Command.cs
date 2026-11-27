@@ -100,7 +100,10 @@ namespace src.command
             Debug.WriteToDebug($"Player {player.PlayerName} used the skill: {playerInfo.Skill}", DebugCategory.Skill);
 
             if (commands == null || commands.Length == 0)
-                Instance.SkillAction(playerInfo.Skill.ToString(), "UseSkill", [player]);
+            {
+                if (!Hud.ReopenTargetPicker(player))
+                    Instance.SkillAction(playerInfo.Skill.ToString(), "UseSkill", [player]);
+            }
             else
                 Instance.SkillAction(playerInfo.Skill.ToString(), "TypeSkill", [player, commands]);
         }
@@ -445,7 +448,7 @@ namespace src.command
             bool isDisplayHUD = playerInfo.HideHUD < tickCount;
 
             playerInfo.HideHUD = isDisplayHUD ? int.MaxValue : int.MinValue;
-            if (isDisplayHUD) Hud.DismissMenu(player);
+            if (isDisplayHUD) Hud.HideHud(player);
             player.Notify($" {(!isDisplayHUD ? ChatColors.Green : ChatColors.Red)}{player.GetTranslationWithoutIlliterate(!isDisplayHUD ? "hud_on" : "hud_off")}");
         }
 
